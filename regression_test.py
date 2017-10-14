@@ -238,7 +238,7 @@ def main(options):
         logging.basicConfig(format="%(message)s", level=logging.INFO)
 
     failures = build_jrpcclient(options)
-    if not options.just_build_libs:
+    if not options.just_build_libs and not options.deb_builder:
         failures += test_jrpcclient()
 
     return failures
