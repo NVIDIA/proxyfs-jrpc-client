@@ -17,119 +17,52 @@ static char rpc_server[128];
 static int  rpc_port;
 static int  rpc_fast_port;
 
-static char* configFile	       = "/tmp/rpc_server.conf";
-static char* configIPAddrKey   = "IPAddr";
-static char* configPortKey     = "TCPPort";
-static char* configFastPortKey = "FastTCPPort";
-
-char *rpc_override_string = (char *)NULL;
-
-void rpc_config_override(const char *override_string)
+void rpc_config_set(const char *set_rpc_server, int set_rpc_port, int set_rpc_fast_port)
 {
-    rpc_override_string = strdup(override_string);
+    size_t rpc_server_len = strlen(set_rpc_server);
+
+    if (127 < rpc_server_len) DPANIC("IPAddr too long (%d - should be no more than 127)", rpc_server_len);
+    (void)strcpy(rpc_server, set_rpc_server);
+    rpc_server[rpc_server_len] = '\0';
+
+    rpc_port      = set_rpc_port;
+    rpc_fast_port = set_rpc_fast_port;
 }
 
-void get_rpc_config()
+void rpc_config_parse(const char *rpc_config_string)
 {
-    char* buffer = NULL;
-    char* bufPtr = NULL;
+    int  colon_pos;
     long length = 0;
-    char *line, *key, *value, *brkt, *brkb;
-    int slash_pos;
-    int colon_pos;
-    char rpc_port_string[16];
     char rpc_fast_port_string[16];
+    char rpc_port_string[16];
+    int  slash_pos;
 
-    if ((char *)NULL != rpc_override_string) {
-        // Instead of reading config file, parse IPAddr:TCPPort:FastTCPPort rpc_override_string
+    length = strlen(rpc_config_string);
 
-        length = strlen(rpc_override_string);
+    slash_pos = length - 1;
+    while ((0 <= slash_pos) && ('/' != rpc_config_string[slash_pos])) slash_pos--;
+    if (0 > slash_pos) DPANIC("Failed to find delimiting '/' between TCPPort & FastTCPPort in rpc_config_string");
+    if (1 == (length - slash_pos)) DPANIC("FastTCPPort following '/' zero-length");
+    if (16 < (length - slash_pos)) DPANIC("FastTCPPort field too long (%d - should be no more than 15)", length - slash_pos - 1);
 
-        slash_pos = length - 1;
-        while ((0 <= slash_pos) && ('/' != rpc_override_string[slash_pos])) slash_pos--;
-        if (0 > slash_pos) DPANIC("Failed to find delimiting '|' between TCPPort & FastTCPPort in rpc_override_string");
-        if (1 == (length - slash_pos)) DPANIC("FastTCPPort following '|' zero-length");
-        if (16 < (length - slash_pos)) DPANIC("FastTCPPort field too long (%d - should be no more than 15)", length - slash_pos - 1);
+    colon_pos = slash_pos - 1;
+    while ((0 <= colon_pos) && (':' != rpc_config_string[colon_pos])) colon_pos--;
+    if (0 > colon_pos) DPANIC("Failed to find delimiting ':' between IPAddr & TCPPort in rpc_config_string");
+    if (1 == (slash_pos - colon_pos)) DPANIC("TCPPort following ':' zero-length");
+    if (16 < (slash_pos - colon_pos)) DPANIC("TCPPort field too long (%d - should be no more than 15)", slash_pos - colon_pos - 1);
 
-        colon_pos = slash_pos - 1;
-        while ((0 <= colon_pos) && (':' != rpc_override_string[colon_pos])) colon_pos--;
-        if (0 > colon_pos) DPANIC("Failed to find delimiting ':' between IPAddr & TCPPort in rpc_override_string");
-        if (1 == (slash_pos - colon_pos)) DPANIC("TCPPort following ':' zero-length");
-        if (16 < (slash_pos - colon_pos)) DPANIC("TCPPort field too long (%d - should be no more than 15)", slash_pos - colon_pos - 1);
+    if (0 == colon_pos) DPANIC("IPAddr preceding ':' zero-length");
+    if (128 < colon_pos) DPANIC("IPAddr field too long (%d - should be no more than 127)", colon_pos - 1);
 
-        if (0 == colon_pos) DPANIC("IPAddr preceding ':' zero-length");
-        if (128 < colon_pos) DPANIC("IPAddr field too long (%d - should be no more than 127)", colon_pos - 1);
-
-        strncpy(&rpc_server[0], &rpc_override_string[0], colon_pos);
-        rpc_server[colon_pos] = '\0';
-        strncpy(&rpc_port_string[0], &rpc_override_string[colon_pos + 1], slash_pos - colon_pos - 1);
-        rpc_port_string[slash_pos - colon_pos - 1] = '\0';
-        rpc_port = atoi(rpc_port_string);
-        strncpy(&rpc_fast_port_string[0], &rpc_override_string[slash_pos + 1], length - slash_pos - 1);
-        rpc_fast_port_string[length - slash_pos - 1] = '\0';
-        rpc_fast_port = atoi(rpc_fast_port_string);
-
-        return;
-    }
-
-    // Open /tmp/rpc_server.conf
-    FILE* fd = fopen(configFile, "r");
-    if (fd) {
-        //DPRINTF(">>>> ProxyFS API: Opened config file %s.\n", configFile);
-
-        // Find the file length
-        fseek(fd, 0, SEEK_END);
-        length = ftell(fd);
-        fseek(fd, 0, SEEK_SET);
-
-        // Alloc a buffer and then read the file into it
-        buffer = malloc(length+1);
-        if (buffer)
-        {
-            fread (buffer, 1, length, fd);
-            buffer[length] = '\0';
-        }
-        fclose (fd);
-    } else {
-        DPRINTF(">>>> ProxyFS API: FAILED to open config file %s.\n", configFile);
-    }
-
-    // Set our temp pointer to the beginning of the buffer
-    bufPtr = buffer;
-
-    //printf("conf file length is %ld\n",strlen(buffer));
-    if (buffer == NULL)
-    {
-        DPRINTF(">>>> ProxyFS API: ERROR, unable to read config file %s; default settings will be used.\n",
-                configFile);
-    }
-
-    // Look for key: value lines
-    while (line = strtok_r(bufPtr, "\n", &bufPtr))
-    {
-        // Get this line's key and value
-        key = strtok_r(line, ": ", &brkb);
-        if (key != NULL) {
-            value = brkb + 1;
-
-            if (strcmp(key, configIPAddrKey) == 0) {
-                // Found the RPC server IPAddr
-                strcpy(rpc_server, value);
-            } else if (strcmp(key, configPortKey) == 0) {
-                // Found the RPC TCPPort
-                rpc_port = atoi(value);
-            } else if (strcmp(key, configFastPortKey) == 0) {
-                // Found the RPC FastTCPPort
-                rpc_fast_port = atoi(value);
-            }
-        }
-    }
-
-    free(buffer);
-
-    DPRINTF(">>>> ProxyFS API: Using JSON RPC server %s:%d and %s:%d\n", rpc_server, rpc_port, rpc_server, rpc_fast_port);
+    strncpy(&rpc_server[0], &rpc_config_string[0], colon_pos);
+    rpc_server[colon_pos] = '\0';
+    strncpy(&rpc_port_string[0], &rpc_config_string[colon_pos + 1], slash_pos - colon_pos - 1);
+    rpc_port_string[slash_pos - colon_pos - 1] = '\0';
+    rpc_port = atoi(rpc_port_string);
+    strncpy(&rpc_fast_port_string[0], &rpc_config_string[slash_pos + 1], length - slash_pos - 1);
+    rpc_fast_port_string[length - slash_pos - 1] = '\0';
+    rpc_fast_port = atoi(rpc_fast_port_string);
 }
-
 
 // Internal struct for our RPC handle
 struct rpc_handle_t {
@@ -153,9 +86,6 @@ jsonrpc_handle_t* pfs_rpc_open()
         // Fault-inject case
         return NULL;
     }
-
-    // Get the config of the RPC server so that we know who to connect to.
-    get_rpc_config();
 
     // Alloc memory for handle to return
     jsonrpc_handle_t* handle = (jsonrpc_handle_t*)malloc(sizeof(jsonrpc_handle_t));

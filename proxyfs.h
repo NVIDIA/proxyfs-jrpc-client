@@ -14,6 +14,10 @@
 #include <fcntl.h>
 #include <sys/queue.h>
 
+// Set JSON RPC particulars... as a 3-tuple or via <IPAddr>:<TCPPort>/<FastTCPPort> string
+void rpc_config_set(const char *set_rpc_server, int set_rpc_port, int set_rpc_fast_port);
+void rpc_config_parse(const char *rpc_config_string);
+
 // Forward declaration so that we don't have to include the real definition
 // of jsonrpc_handle_t.
 struct rpc_handle_t;

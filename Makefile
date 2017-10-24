@@ -21,15 +21,6 @@ libproxyfs.so.1.0.0: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_uti
 test: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o test.o
 	$(CC) -o test proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o test.o $(CFLAGS) $(LDFLAGS)
 
-pfs_log: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o pfs_log.o
-	$(CC) -o pfs_log proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o pfs_log.o $(CFLAGS) $(LDFLAGS)
-
-pfs_ping: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o pfs_ping.o
-	$(CC) -o pfs_ping proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o pfs_ping.o $(CFLAGS) $(LDFLAGS) -lm
-
-pfs_rw: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o pfs_rw.o
-	$(CC) -o pfs_rw proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o pfs_rw.o $(CFLAGS) $(LDFLAGS) -lm
-
 install:
 	cp -f libproxyfs.so.1.0.0 $(LIBINSTALL)/libproxyfs.so.1.0.0
 	ln -f -s $(LIBINSTALL)/libproxyfs.so.1.0.0 $(LIBINSTALL)/libproxyfs.so.1

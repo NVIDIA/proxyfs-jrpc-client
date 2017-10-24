@@ -3261,12 +3261,12 @@ void statvfs_tests()
 
 void print_usage() {
     printf("Run ProxyFS RPC client-side tests.\n\n");
-    printf("Usage: test [-h|-v|-s|-p <jsonrpc-port-number>|-t <test_name>]\n");
+    printf("Usage: test [-h|-v|-s|-r <JSON:RPC/tuple>|-t <test_name>]\n");
     printf("       When called with no parameters, the entire suite of tests is run.\n");
     printf("       -h: print this message.\n");
     printf("       -v: verbose mode; more test output.\n");
     printf("       -s: silent mode; no test output. Intended for performance testing.\n");
-    printf("       -o: specify JSON RPC server info as <ipaddr>:<port>/<fast_port> to use.\n");
+    printf("       -r: specify JSON RPC server info as <ipaddr>:<port>/<fast_port> to use.\n");
     printf("       -t: run a subset of tests, intended to reproduce specific issues.\n");
     printf("           Test subsets supported are:\n");
     printf("            4kread\n");
@@ -3288,11 +3288,12 @@ int main(int argc, char *argv[])
     int c = 0;
     char* tvalue = NULL;
     opterr = 0;
-    bool testsSuiteAborted = false;
-    bool fakeHang          = false;
+    bool testsSuiteAborted    = false;
+    bool fakeHang             = false;
+    bool rpc_config_specified = false;
 
     // See if the caller passed in any flags
-    while ((c = getopt(argc, argv, "hvst:o:")) != -1) {
+    while ((c = getopt(argc, argv, "hvsr:t:")) != -1) {
         switch (c)
         {
             case 'h':
@@ -3300,18 +3301,19 @@ int main(int argc, char *argv[])
                 return 0;
                 break;
             case 'v':
-                // Caller  wants debug prints from proxyfs code
+                // Caller wants debug prints from proxyfs code
                 quiet = false;
                 break;
             case 's':
-                // Caller  silent mode, no prints at all
+                // Caller silent mode, no prints at all
                 silent = true;
                 quiet  = true;
                 disable_fault_prints();
                 break;
-            case 'o':
-                // Caller wants to override config file
-                rpc_config_override(optarg);
+            case 'r':
+                // Caller specified JSON:RPC/tuple (as required)
+                rpc_config_parse(optarg);
+                rpc_config_specified = true;
                 break;
             case 't':
                 // Caller wants to run a specific test
@@ -3428,7 +3430,7 @@ int main(int argc, char *argv[])
                 }
                 break;
             case '?':
-                if ((optopt == 't') || (optopt == 'o')) {
+                if ((optopt == 'r') || (optopt == 't')) {
                     printf("Option -%c requires an argument.\n", optopt);
                 } else if (isprint(optopt)) {
                     printf("Unknown option `-%c'.\n", optopt);
@@ -3438,6 +3440,10 @@ int main(int argc, char *argv[])
                 return 1;
             default:
                 abort ();
+        }
+        if (!rpc_config_specified) {
+            printf("-r <JSON:RPC/tuple> must be specified.\n");
+            return 1;
         }
     }
 

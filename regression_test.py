@@ -149,7 +149,6 @@ def test_jrpcclient():
              "SwiftClient.NoAuthTCPPort={}".format(ramswift_port),
              "JSONRPCServer.TCPPort={}".format(jsonrpc_port),
              "JSONRPCServer.FastTCPPort={}".format(jsonrpc_fastport),
-             "JSONRPCServer.DontWriteConf=true",
              "HTTPServer.TCPPort={}".format(http_port)],
             stdout=dev_null, stderr=dev_null,
             cwd=proxyfs_package_path("proxyfsd")
@@ -171,9 +170,9 @@ def test_jrpcclient():
             ramswift.terminate()
             return proxyfsd.returncode
 
-        config_override_string = "{}:{}/{}".format(private_ip_addr,
-                                                   jsonrpc_port,
-                                                   jsonrpc_fastport)
+        rpc_config_string = "{}:{}/{}".format(private_ip_addr,
+                                              jsonrpc_port,
+                                              jsonrpc_fastport)
 
         # wait a moment for proxyfsd to get set "Up()"
         # wait_for_proxyfs(...) returns a boolean, but we'll let the rest of
@@ -183,7 +182,7 @@ def test_jrpcclient():
 
         jrpcclient_tests = subprocess.Popen(
             [os.path.join(".", "test"),
-             "-o", config_override_string],
+             "-r", rpc_config_string],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             cwd=os.getcwd()
         )

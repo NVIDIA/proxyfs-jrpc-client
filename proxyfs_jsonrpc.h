@@ -5,9 +5,6 @@
 #include <json_utils.h>
 #include <time_utils.h>
 
-// Override config file
-void rpc_config_override(const char *override_string);
-
 // Context open/close
 jsonrpc_handle_t* pfs_rpc_open();
 void pfs_rpc_close(jsonrpc_handle_t* handle);
