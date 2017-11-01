@@ -1046,8 +1046,6 @@ make install
 	* Initial release
 	
 
-# Meta
-Distributed under the MIT license. 	
 
 
 
