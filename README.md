@@ -72,32 +72,6 @@ Errors we **will not** support, because they don't make sense in our context:
 
 
 
-## Functionality that will be supported by ProxyFS in future
-
-In order to support all the errors expected by POSIX clients, we would need to support the following functionality in ProxyFS. 
-
-* Support for read-only mount option
-
-    * This will allow us to support EROFS (read-only filesystem)
-
-    * Swift does not support this functionality, so it would need to be implemented in ProxyFS.
-
-    * We will support this functionality; timeframe is TBD
-
-* Support for some kind of permissions checking
-
-    * This will allow us to support EPERM/EACCESS
-
-    * We will support this functionality; timeframe is TBD
-
-* Support for open/close semantics
-
-    * This would be needed in order to support being able to determine if files/objects are currently being used by Samba. If they are, we should not support unlink/remove operations on those inodes, and they should not be garbage collected.
-
-    * EBUSY - In general, this error is returned when some action such as unmount, unlink or rename cannot be completed because the target is the working directory of some thread, the mount point of another device, has open files, etc. We cannot return this error unless we keep track of these things in ProxyFS.
-
-
-
 -----
 
 # API Descriptions
@@ -1038,18 +1012,3 @@ make all
 ```shell
 make install
 ```
-
-
-# Release History
-
-* 0.0.1
-	* Initial release
-	
-
-
-
-
-
-
-
-
