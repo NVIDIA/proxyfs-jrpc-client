@@ -86,7 +86,7 @@ typedef enum {
     ATTRFLAGS,
     ATTRNAMES,
     ATTRNNAMESCOUNT,
-    DIR_LOCATION,
+    NEXT_DIR_LOCATION,
     PREV_DIR_LOCATION,
     BLOCK_SIZE,
     FRAGMENT_SIZE,
@@ -165,7 +165,7 @@ char* ptable[] = {
     "AttrFlags",            // ATTRFLAGS
     "AttrNames",            // ATTRNAMES
     "AttrNamesCount",       // ATTRNNAMESCOUNT
-    "DirLocation",          // DIR_LOCATION
+    "NextDirLocation",      // NEXT_DIR_LOCATION
     "PrevDirLocation",      // PREV_DIR_LOCATION
     "BlockSize",            // BLOCK_SIZE
     "FragmentSize",         // FRAGMENT_SIZE
@@ -1720,7 +1720,7 @@ struct dirent* proxyfs_get_dirents(jsonrpc_context_t* ctx, int num_entries)
 
 #ifdef _DIRENT_HAVE_D_OFF
         // Directory entry location
-        ent->d_off = (int)jsonrpc_get_resp_array_int(ctx, ptable[DIRENTS], i, ptable[DIR_LOCATION]);
+        ent->d_off = (int)jsonrpc_get_resp_array_int(ctx, ptable[DIRENTS], i, ptable[NEXT_DIR_LOCATION]);
 #endif
 
 #ifdef _DIRENT_HAVE_D_TYPE

@@ -751,7 +751,7 @@ fail:
 bool check_dirents(char* funcToTest, struct dirent* dir_ent, int prevDirLoc) {
     int numEntries = 1; // Always get back just one entry
 
-    int expectedDirLoc = 0;
+    int expectedDirLoc = 1;
     if (prevDirLoc != -1) {
         expectedDirLoc = prevDirLoc + 1;
     }
@@ -3037,8 +3037,8 @@ void read_symlink_tests()
 void readdir_tests()
 {
     // Readdir     #1 A/B/ (prev == "",  max_entries == 0) : ensure we get only ".", "..", and "E"
-    test_readdir_all(ROOT_DIR, -1, 11, longSubDir);
-    test_readdir_all(SUBDIR1, -1, 5, subdirfile1);
+    test_readdir_all(ROOT_DIR, -1, 6, longSubDir);
+    test_readdir_all(SUBDIR1, -1, 3, subdirfile1);
     test_readdir(ROOT_DIR, 5, 0);
     test_readdir(ROOT_DIR, 99, ENOENT);
 
@@ -3051,7 +3051,7 @@ void readdir_tests()
     clear_fault(BAD_MOUNT_ID);
 
     // Readdir     #2 A/   (prev == "",  max_entries == 3) : ensure we get only ".", ".." & "B"
-    test_readdir_plus_all(ROOT_DIR, -1, 11, longSubDir);
+    test_readdir_plus_all(ROOT_DIR, -1, 6, longSubDir);
     test_readdir_plus(ROOT_DIR, 5, 0);
     test_readdir_plus(ROOT_DIR, 99, ENOENT);
 
