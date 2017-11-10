@@ -141,6 +141,26 @@ def test_jrpcclient():
              cwd=proxyfs_package_path("ramswift")
         )
 
+        try:
+            mkproxyfs = subprocess.check_call(
+                [proxyfs_binary_path("mkproxyfs"),
+                "-N",
+                "CommonVolume",
+                "saioproxyfsd0.conf",
+                "Logging.LogFilePath={}/{}".format(our_tempdir, "proxyfsd_jrpcclient.log"),
+                "Peer0.PrivateIPAddr={}".format(private_ip_addr),
+                "SwiftClient.NoAuthTCPPort={}".format(ramswift_port),
+                "JSONRPCServer.TCPPort={}".format(jsonrpc_port),
+                "JSONRPCServer.FastTCPPort={}".format(jsonrpc_fastport),
+                "HTTPServer.TCPPort={}".format(http_port)],
+                stdout=dev_null, stderr=dev_null,
+                cwd=proxyfs_package_path("proxyfsd")
+            )
+        except subprocess.CalledProcessError as e:
+            color_printer("mkproxyfs failed with returncode {}".format(e.returncode), color="bright red")
+            ramswift.terminate()
+            return e.returncode
+
         proxyfsd = subprocess.Popen(
             [proxyfs_binary_path("proxyfsd"),
              "saioproxyfsd0.conf",
