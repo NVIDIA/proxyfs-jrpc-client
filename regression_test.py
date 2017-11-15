@@ -135,7 +135,7 @@ def test_jrpcclient():
         ramswift = subprocess.Popen(
             [proxyfs_binary_path("ramswift"),
              "saioramswift0.conf",
-             "Peer0.PrivateIPAddr={}".format(private_ip_addr),
+             "Peer:Peer0.PrivateIPAddr={}".format(private_ip_addr),
              "SwiftClient.NoAuthTCPPort={}".format(ramswift_port)],
              stdout=dev_null, stderr=dev_null,
              cwd=proxyfs_package_path("ramswift")
@@ -148,7 +148,7 @@ def test_jrpcclient():
                 "CommonVolume",
                 "saioproxyfsd0.conf",
                 "Logging.LogFilePath={}/{}".format(our_tempdir, "proxyfsd_jrpcclient.log"),
-                "Peer0.PrivateIPAddr={}".format(private_ip_addr),
+                "Peer:Peer0.PrivateIPAddr={}".format(private_ip_addr),
                 "SwiftClient.NoAuthTCPPort={}".format(ramswift_port),
                 "JSONRPCServer.TCPPort={}".format(jsonrpc_port),
                 "JSONRPCServer.FastTCPPort={}".format(jsonrpc_fastport),
@@ -165,7 +165,7 @@ def test_jrpcclient():
             [proxyfs_binary_path("proxyfsd"),
              "saioproxyfsd0.conf",
              "Logging.LogFilePath={}/{}".format(our_tempdir, "proxyfsd_jrpcclient.log"),
-             "Peer0.PrivateIPAddr={}".format(private_ip_addr),
+             "Peer:Peer0.PrivateIPAddr={}".format(private_ip_addr),
              "SwiftClient.NoAuthTCPPort={}".format(ramswift_port),
              "JSONRPCServer.TCPPort={}".format(jsonrpc_port),
              "JSONRPCServer.FastTCPPort={}".format(jsonrpc_fastport),
