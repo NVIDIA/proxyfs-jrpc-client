@@ -59,8 +59,10 @@ typedef enum {
     RENAME_PATH,
     READDIR,
     READDIR_BY_LOC,
+    READDIR_BY_LOC_ALL,
     READDIR_PLUS,
     READDIR_PLUS_BY_LOC,
+    READDIR_PLUS_BY_LOC_ALL,
     SET_TIME,
     SET_TIME_PATH,
     RMDIR,
@@ -104,8 +106,10 @@ char* funcs[] = {
     "proxyfs_rename_path",
     "proxyfs_readdir",
     "proxyfs_readdir_by_loc",
+    "proxyfs_readdir_by_loc_all",
     "proxyfs_readdir_plus",
     "proxyfs_readdir_plus_by_loc",
+    "proxyfs_readdir_plus_by_loc_all",
     "proxyfs_settime",
     "proxyfs_settime_path",
     "proxyfs_rmdir",
@@ -1753,7 +1757,7 @@ void test_readdir(file_id_t id, int prevDirLoc, int exp_status) {
         return;
     }
 
-    char* funcToTest = funcs[READDIR];
+    char* funcToTest = funcs[READDIR_BY_LOC];
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s on inode %" PRIu64 " with previous location %d, expect status %d.\n", funcToTest, fi->inode, prevDirLoc, exp_status);
@@ -1782,10 +1786,10 @@ void test_readdir_all(file_id_t id, int exp_status, int files_expected, char *ch
         return;
     }
 
-    char* funcToTest = funcs[READDIR];
+    char* funcToTest = funcs[READDIR_BY_LOC_ALL];
     file_info_t* fi = &file_info[id];
 
-    int64_t prevDirLoc         = -1;
+    int64_t prevDirLoc         = 0;
     int     checked_file_found = 0;
     int     err                = 0;
     do {
@@ -1793,8 +1797,8 @@ void test_readdir_all(file_id_t id, int exp_status, int files_expected, char *ch
         TLOG("Calling %s on inode %" PRIu64 " with previous location %" PRId64 ", expect status %d.\n", funcToTest, fi->inode, prevDirLoc, exp_status);
 
         struct dirent* dir_ent = NULL;
-        err = proxyfs_readdir_by_loc(mount_id(), fi->inode, prevDirLoc, &dir_ent);
-        handle_api_return_with_dirent(funcToTest, err, fi->inode, dir_ent, prevDirLoc, exp_status);
+        err = proxyfs_readdir_by_loc(mount_id(), fi->inode, prevDirLoc - 1, &dir_ent);
+        handle_api_return_with_dirent(funcToTest, err, fi->inode, dir_ent, prevDirLoc - 1, exp_status);
 
         if (dir_ent != NULL) {
             files_found += 1;
@@ -1833,15 +1837,15 @@ void test_readdir_plus(file_id_t id, int prevDirLoc, int exp_status) {
         return;
     }
 
-    char* funcToTest = funcs[READDIR_PLUS];
+    char* funcToTest = funcs[READDIR_PLUS_BY_LOC];
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s on inode %" PRIu64 " with previous location %d, expect status %d.\n", funcToTest, fi->inode, prevDirLoc, exp_status);
 
     struct dirent* dir_ent = NULL;
     proxyfs_stat_t* stat = NULL;
-    int err = proxyfs_readdir_plus_by_loc(mount_id(), fi->inode, prevDirLoc, &dir_ent, &stat);
-    handle_api_return_with_dirent_stat(funcToTest, err, fi->inode, dir_ent, stat, prevDirLoc, exp_status);
+    int err = proxyfs_readdir_plus_by_loc(mount_id(), fi->inode, prevDirLoc - 1, &dir_ent, &stat);
+    handle_api_return_with_dirent_stat(funcToTest, err, fi->inode, dir_ent, stat, prevDirLoc - 1, exp_status);
 
     if (dir_ent != NULL) {
         dir_ent = NULL;
@@ -1868,10 +1872,10 @@ void test_readdir_plus_all(file_id_t id, int exp_status, int files_expected, cha
         return;
     }
 
-    char* funcToTest = funcs[READDIR_PLUS];
+    char* funcToTest = funcs[READDIR_PLUS_BY_LOC_ALL];
     file_info_t* fi = &file_info[id];
 
-    int64_t prevDirLoc     = -1;
+    int64_t prevDirLoc     = 0;
     int checked_file_found = 0;
     int err                = 0;
     do {
@@ -1880,8 +1884,8 @@ void test_readdir_plus_all(file_id_t id, int exp_status, int files_expected, cha
 
         struct dirent* dir_ent = NULL;
         proxyfs_stat_t* stat = NULL;
-        err = proxyfs_readdir_plus_by_loc(mount_id(), fi->inode, prevDirLoc, &dir_ent, &stat);
-        handle_api_return_with_dirent_stat(funcToTest, err, fi->inode, dir_ent, stat, prevDirLoc, exp_status);
+        err = proxyfs_readdir_plus_by_loc(mount_id(), fi->inode, prevDirLoc - 1, &dir_ent, &stat);
+        handle_api_return_with_dirent_stat(funcToTest, err, fi->inode, dir_ent, stat, prevDirLoc - 1, exp_status);
 
         if (dir_ent != NULL) {
             files_found += 1;
@@ -3041,8 +3045,8 @@ void read_symlink_tests()
 void readdir_tests()
 {
     // Readdir     #1 A/B/ (prev == "",  max_entries == 0) : ensure we get only ".", "..", and "E"
-    test_readdir_all(ROOT_DIR, -1, 6, longSubDir);
-    test_readdir_all(SUBDIR1, -1, 3, subdirfile1);
+    test_readdir_all(ROOT_DIR, -1, 11, longSubDir);
+    test_readdir_all(SUBDIR1, -1, 5, subdirfile1);
     test_readdir(ROOT_DIR, 5, 0);
     test_readdir(ROOT_DIR, 99, ENOENT);
 
@@ -3055,7 +3059,7 @@ void readdir_tests()
     clear_fault(BAD_MOUNT_ID);
 
     // Readdir     #2 A/   (prev == "",  max_entries == 3) : ensure we get only ".", ".." & "B"
-    test_readdir_plus_all(ROOT_DIR, -1, 6, longSubDir);
+    test_readdir_plus_all(ROOT_DIR, -1, 11, longSubDir);
     test_readdir_plus(ROOT_DIR, 5, 0);
     test_readdir_plus(ROOT_DIR, 99, ENOENT);
 
