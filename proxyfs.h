@@ -362,8 +362,13 @@ int proxyfs_read_send(void*                   in_request_id,
 //       time, though this interface is more generic
 int proxyfs_readdir(mount_handle_t* in_mount_handle,
                     uint64_t        in_inode_number,
-                    int64_t         in_prev_dir_loc,
+                    char*           in_prev_dir_ent_name,
                     struct dirent** out_dir_ent);
+
+int proxyfs_readdir_by_loc(mount_handle_t* in_mount_handle,
+                           uint64_t        in_inode_number,
+                           int64_t         in_prev_dir_ent_loc,
+                           struct dirent** out_dir_ent);
 
 // Inode-based readdir plus; returns stats as well as the dir info
 // CIFS needs this.
@@ -372,9 +377,15 @@ int proxyfs_readdir(mount_handle_t* in_mount_handle,
 //
 int proxyfs_readdir_plus(mount_handle_t*  in_mount_handle,
                          uint64_t         in_inode_number,
-                         int64_t          in_prev_dir_loc,
+                         char*            in_prev_dir_ent_name,
                          struct dirent**  out_dir_ent,
                          proxyfs_stat_t** out_dir_ent_stats);
+
+int proxyfs_readdir_plus_by_loc(mount_handle_t*  in_mount_handle,
+                                uint64_t         in_inode_number,
+                                int64_t          in_prev_dir_ent_loc,
+                                struct dirent**  out_dir_ent,
+                                proxyfs_stat_t** out_dir_ent_stats);
 
 // Inode-based read_symlink
 //

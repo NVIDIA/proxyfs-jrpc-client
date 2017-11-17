@@ -58,7 +58,9 @@ typedef enum {
     RENAME,
     RENAME_PATH,
     READDIR,
+    READDIR_BY_LOC,
     READDIR_PLUS,
+    READDIR_PLUS_BY_LOC,
     SET_TIME,
     SET_TIME_PATH,
     RMDIR,
@@ -101,7 +103,9 @@ char* funcs[] = {
     "proxyfs_rename",
     "proxyfs_rename_path",
     "proxyfs_readdir",
+    "proxyfs_readdir_by_loc",
     "proxyfs_readdir_plus",
+    "proxyfs_readdir_plus_by_loc",
     "proxyfs_settime",
     "proxyfs_settime_path",
     "proxyfs_rmdir",
@@ -1051,7 +1055,7 @@ int test_mount(char* volname, uint64_t options, uid_t userid, gid_t groupid, int
     }
 }
 
-// Diagnostic utility function 
+// Diagnostic utility function
 void dump_dir_listing(uint64_t inode) {
     TLOG("--\n", "");
 
@@ -1059,7 +1063,7 @@ void dump_dir_listing(uint64_t inode) {
     int     err                = 0;
     for (;;) {
         struct dirent* dir_ent = NULL;
-        err = proxyfs_readdir(mount_id(), inode, prevDirLoc, &dir_ent);
+        err = proxyfs_readdir_by_loc(mount_id(), inode, prevDirLoc, &dir_ent);
 
         if (err == 0) {
             if (dir_ent != NULL) {
@@ -1755,7 +1759,7 @@ void test_readdir(file_id_t id, int prevDirLoc, int exp_status) {
     TLOG("Calling %s on inode %" PRIu64 " with previous location %d, expect status %d.\n", funcToTest, fi->inode, prevDirLoc, exp_status);
 
     struct dirent* dir_ent = NULL;
-    int err = proxyfs_readdir(mount_id(), fi->inode, prevDirLoc, &dir_ent);
+    int err = proxyfs_readdir_by_loc(mount_id(), fi->inode, prevDirLoc, &dir_ent);
     handle_api_return_with_dirent(funcToTest, err, fi->inode, dir_ent, prevDirLoc, exp_status);
 
     if (dir_ent != NULL) {
@@ -1789,7 +1793,7 @@ void test_readdir_all(file_id_t id, int exp_status, int files_expected, char *ch
         TLOG("Calling %s on inode %" PRIu64 " with previous location %" PRId64 ", expect status %d.\n", funcToTest, fi->inode, prevDirLoc, exp_status);
 
         struct dirent* dir_ent = NULL;
-        err = proxyfs_readdir(mount_id(), fi->inode, prevDirLoc, &dir_ent);
+        err = proxyfs_readdir_by_loc(mount_id(), fi->inode, prevDirLoc, &dir_ent);
         handle_api_return_with_dirent(funcToTest, err, fi->inode, dir_ent, prevDirLoc, exp_status);
 
         if (dir_ent != NULL) {
@@ -1836,7 +1840,7 @@ void test_readdir_plus(file_id_t id, int prevDirLoc, int exp_status) {
 
     struct dirent* dir_ent = NULL;
     proxyfs_stat_t* stat = NULL;
-    int err = proxyfs_readdir_plus(mount_id(), fi->inode, prevDirLoc, &dir_ent, &stat);
+    int err = proxyfs_readdir_plus_by_loc(mount_id(), fi->inode, prevDirLoc, &dir_ent, &stat);
     handle_api_return_with_dirent_stat(funcToTest, err, fi->inode, dir_ent, stat, prevDirLoc, exp_status);
 
     if (dir_ent != NULL) {
@@ -1876,7 +1880,7 @@ void test_readdir_plus_all(file_id_t id, int exp_status, int files_expected, cha
 
         struct dirent* dir_ent = NULL;
         proxyfs_stat_t* stat = NULL;
-        err = proxyfs_readdir_plus(mount_id(), fi->inode, prevDirLoc, &dir_ent, &stat);
+        err = proxyfs_readdir_plus_by_loc(mount_id(), fi->inode, prevDirLoc, &dir_ent, &stat);
         handle_api_return_with_dirent_stat(funcToTest, err, fi->inode, dir_ent, stat, prevDirLoc, exp_status);
 
         if (dir_ent != NULL) {
