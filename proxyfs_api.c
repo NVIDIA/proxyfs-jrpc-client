@@ -168,7 +168,7 @@ char* ptable[] = {
     "AttrNamesCount",       // ATTRNNAMESCOUNT
     "NextDirLocation",      // NEXT_DIR_LOCATION
     "PrevDirEntLocation",   // PREV_DIR_ENT_LOCATION
-    "PrevDirEntName"        // PREV_DIR_ENT_NAME
+    "PrevDirEntName",       // PREV_DIR_ENT_NAME
     "BlockSize",            // BLOCK_SIZE
     "FragmentSize",         // FRAGMENT_SIZE
     "TotalBlocks",          // TOTAL_BLOCKS
