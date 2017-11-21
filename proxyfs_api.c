@@ -87,7 +87,8 @@ typedef enum {
     ATTRNAMES,
     ATTRNNAMESCOUNT,
     NEXT_DIR_LOCATION,
-    PREV_DIR_LOCATION,
+    PREV_DIR_ENT_LOCATION,
+    PREV_DIR_ENT_NAME,
     BLOCK_SIZE,
     FRAGMENT_SIZE,
     TOTAL_BLOCKS,
@@ -166,7 +167,8 @@ char* ptable[] = {
     "AttrNames",            // ATTRNAMES
     "AttrNamesCount",       // ATTRNNAMESCOUNT
     "NextDirLocation",      // NEXT_DIR_LOCATION
-    "PrevDirLocation",      // PREV_DIR_LOCATION
+    "PrevDirEntLocation",   // PREV_DIR_ENT_LOCATION
+    "PrevDirEntName",       // PREV_DIR_ENT_NAME
     "BlockSize",            // BLOCK_SIZE
     "FragmentSize",         // FRAGMENT_SIZE
     "TotalBlocks",          // TOTAL_BLOCKS
@@ -1739,14 +1741,32 @@ struct dirent* proxyfs_get_dirents(jsonrpc_context_t* ctx, int num_entries)
     return dirents;
 }
 
-// NOTE: Unlike readdir(3), caller is responsible for freeing the out_dir_ent.
+int proxyfs_readdir_helper(mount_handle_t* in_mount_handle,
+                           jsonrpc_context_t* ctx,
+                           struct dirent** out_dir_ent)
+{
+    // Call RPC
+    int rsp_status = jsonrpc_exec_request_blocking(ctx);
+    if (rsp_status == 0) {
+        // Success; Set the values to be returned
+        //
+
+        // NOTE: The caller is responsible for freeing this memory.
+        *out_dir_ent = proxyfs_get_dirents(ctx, 1);
+    } else {
+        handle_rsp_error(__FUNCTION__, &rsp_status, in_mount_handle);
+    }
+
+    // Clean up jsonrpc context and return
+    jsonrpc_close(ctx);
+    return rsp_status;
+}
+
 int proxyfs_readdir(mount_handle_t* in_mount_handle,
                     uint64_t        in_inode_number,
-                    int64_t         in_prev_dir_loc,
+                    char*           in_prev_dir_ent_name,
                     struct dirent** out_dir_ent)
 {
-    uint64_t out_num_entries = 1;
-
     if ((in_mount_handle == NULL) || (out_dir_ent == NULL)) {
         return EINVAL;
     }
@@ -1757,48 +1777,39 @@ int proxyfs_readdir(mount_handle_t* in_mount_handle,
     // Set the params based on what was passed in
     jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],          in_mount_handle->mount_id);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],         in_inode_number);
-    jsonrpc_set_req_param_int64 (ctx, ptable[PREV_DIR_LOCATION], in_prev_dir_loc);
+    jsonrpc_set_req_param_str   (ctx, ptable[PREV_DIR_ENT_NAME], in_prev_dir_ent_name);
 
-    // Call RPC
-    int rsp_status = jsonrpc_exec_request_blocking(ctx);
-    if (rsp_status == 0) {
-        // Success; Set the values to be returned
-        //
-
-        // NOTE: The caller is responsible for freeing this memory.
-        *out_dir_ent = proxyfs_get_dirents(ctx, out_num_entries);
-
-    } else {
-        handle_rsp_error(__FUNCTION__, &rsp_status, in_mount_handle);
-    }
-
-    // Clean up jsonrpc context and return
-    jsonrpc_close(ctx);
-    return rsp_status;
+    return proxyfs_readdir_helper(in_mount_handle, ctx, out_dir_ent);
 }
 
-// NOTE: Unlike readdir(3), caller is responsible for freeing the out_dir_ent and out_dir_ent_stats.
-int proxyfs_readdir_plus(mount_handle_t*  in_mount_handle,
-                         uint64_t         in_inode_number,
-                         int64_t          in_prev_dir_loc,
-                         struct dirent**  out_dir_ent,
-                         proxyfs_stat_t** out_dir_ent_stats)
+// NOTE: Unlike readdir(3), caller is responsible for freeing the out_dir_ent.
+int proxyfs_readdir_by_loc(mount_handle_t* in_mount_handle,
+                           uint64_t        in_inode_number,
+                           int64_t         in_prev_dir_ent_location,
+                           struct dirent** out_dir_ent)
 {
-    uint64_t out_num_entries = 1;
-
-    if ((in_mount_handle == NULL) || (out_dir_ent == NULL) || (out_dir_ent_stats == NULL)) {
+    if ((in_mount_handle == NULL) || (out_dir_ent == NULL)) {
         return EINVAL;
     }
 
     // Get context and set the method
-    jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcReaddirPlus");
+    jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcReaddirByLoc");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],          in_mount_handle->mount_id);
-    jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],         in_inode_number);
-    jsonrpc_set_req_param_int64 (ctx, ptable[PREV_DIR_LOCATION], in_prev_dir_loc);
+    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],              in_mount_handle->mount_id);
+    jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],             in_inode_number);
+    jsonrpc_set_req_param_int64 (ctx, ptable[PREV_DIR_ENT_LOCATION], in_prev_dir_ent_location);
 
-    // Call RPC
+    return proxyfs_readdir_helper(in_mount_handle, ctx, out_dir_ent);
+}
+
+int proxyfs_readdir_plus_helper(mount_handle_t *in_mount_handle,
+                                jsonrpc_context_t *ctx,
+                                struct dirent**  out_dir_ent,
+                                proxyfs_stat_t** out_dir_ent_stats)
+{
+    uint64_t out_num_entries = 1;
+
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
     if (rsp_status == 0) {
         // Success; Set the values to be returned
@@ -1831,6 +1842,52 @@ int proxyfs_readdir_plus(mount_handle_t*  in_mount_handle,
     // Clean up jsonrpc context and return
     jsonrpc_close(ctx);
     return rsp_status;
+}
+
+int proxyfs_readdir_plus(mount_handle_t*  in_mount_handle,
+                         uint64_t         in_inode_number,
+                         char*            in_prev_dir_ent_name,
+                         struct dirent**  out_dir_ent,
+                         proxyfs_stat_t** out_dir_ent_stats)
+{
+
+    if ((in_mount_handle == NULL) || (out_dir_ent == NULL) || (out_dir_ent_stats == NULL)) {
+        return EINVAL;
+    }
+
+    // Get context and set the method
+    jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcReaddirPlus");
+
+    // Set the params based on what was passed in
+    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],        in_mount_handle->mount_id);
+    jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],       in_inode_number);
+    jsonrpc_set_req_param_str (ctx, ptable[PREV_DIR_ENT_NAME], in_prev_dir_ent_name);
+
+    return proxyfs_readdir_plus_helper(in_mount_handle, ctx, out_dir_ent, out_dir_ent_stats);
+}
+
+// NOTE: Unlike readdir(3), caller is responsible for freeing the out_dir_ent and out_dir_ent_stats.
+int proxyfs_readdir_plus_by_loc(mount_handle_t*  in_mount_handle,
+                                uint64_t         in_inode_number,
+                                int64_t          in_prev_dir_ent_loc,
+                                struct dirent**  out_dir_ent,
+                                proxyfs_stat_t** out_dir_ent_stats)
+{
+    uint64_t out_num_entries = 1;
+
+    if ((in_mount_handle == NULL) || (out_dir_ent == NULL) || (out_dir_ent_stats == NULL)) {
+        return EINVAL;
+    }
+
+    // Get context and set the method
+    jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcReaddirPlusByLoc");
+
+    // Set the params based on what was passed in
+    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],              in_mount_handle->mount_id);
+    jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],             in_inode_number);
+    jsonrpc_set_req_param_int64 (ctx, ptable[PREV_DIR_ENT_LOCATION], in_prev_dir_ent_loc);
+
+    return proxyfs_readdir_plus_helper(in_mount_handle, ctx, out_dir_ent, out_dir_ent_stats);
 }
 
 int proxyfs_read_symlink(mount_handle_t* in_mount_handle,
