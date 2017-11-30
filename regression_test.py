@@ -69,7 +69,8 @@ def color_print(content, color=None):
 
 
 def report(task, success=False):
-    printer = color_print if sys.stdout.isatty() else lambda *a, **kw: print(*a)
+    printer = color_print if sys.stdout.isatty() else \
+        lambda *a, **kw: print(*a)
     if success:
         printer("{} {}".format(task, "succeeded!"), color="bright green")
     else:
@@ -123,29 +124,58 @@ def wait_for_proxyfsd(address, port, interval=0.5, max_iterations=60):
 
 
 def test_jrpcclient():
-    private_ip_addr  = "127.0.0.1"
-    ramswift_port    =  4592 # arbitrary
-    jsonrpc_port     = 12347 # 12347 instead of 12345 so that test can run if proxyfsd is already running
-    jsonrpc_fastport = 32347 # 32347 instead of 32345 so that test can run if proxyfsd is already running
-    http_port        = 15347 # 15347 instead of 15346 so that test can run if proxyfsd is already running
+    private_ip_addr = "127.0.0.1"
+    # arbitrary
+    ramswift_port = 4592
+    # 12347 instead of 12345 so that test can run if proxyfsd is already
+    # running
+    jsonrpc_port = 12347
+    # 32347 instead of 32345 so that test can run if proxyfsd is already
+    # running
+    jsonrpc_fastport = 32347
+    # 15347 instead of 15346 so that test can run if proxyfsd is already
+    # running
+    http_port = 15347
 
-    color_printer = color_print if sys.stdout.isatty() else lambda *a, **kw: print(*a)
+    color_printer = color_print if sys.stdout.isatty() else \
+        lambda *a, **kw: print(*a)
 
     with self_cleaning_tempdir() as our_tempdir, open(os.devnull) as dev_null:
         ramswift = subprocess.Popen(
             [proxyfs_binary_path("ramswift"),
              "saioramswift0.conf",
-             "Peer0.PrivateIPAddr={}".format(private_ip_addr),
+             "Peer:Peer0.PrivateIPAddr={}".format(private_ip_addr),
              "SwiftClient.NoAuthTCPPort={}".format(ramswift_port)],
-             stdout=dev_null, stderr=dev_null,
-             cwd=proxyfs_package_path("ramswift")
+            cwd=proxyfs_package_path("ramswift")
         )
+
+        try:
+            mkproxyfs = subprocess.check_call(
+                [proxyfs_binary_path("mkproxyfs"),
+                 "-N",
+                 "CommonVolume",
+                 "saioproxyfsd0.conf",
+                 "Logging.LogFilePath={}/{}".format(our_tempdir,
+                                                    "proxyfsd_jrpcclient.log"),
+                 "Peer:Peer0.PrivateIPAddr={}".format(private_ip_addr),
+                 "SwiftClient.NoAuthTCPPort={}".format(ramswift_port),
+                 "JSONRPCServer.TCPPort={}".format(jsonrpc_port),
+                 "JSONRPCServer.FastTCPPort={}".format(jsonrpc_fastport),
+                 "HTTPServer.TCPPort={}".format(http_port)],
+                cwd=proxyfs_package_path("proxyfsd")
+            )
+        except subprocess.CalledProcessError as e:
+            color_printer("mkproxyfs failed with returncode {}".format(
+                e.returncode), color="bright red")
+            ramswift.terminate()
+            return e.returncode
 
         proxyfsd = subprocess.Popen(
             [proxyfs_binary_path("proxyfsd"),
              "saioproxyfsd0.conf",
-             "Logging.LogFilePath={}/{}".format(our_tempdir, "proxyfsd_jrpcclient.log"),
-             "Peer0.PrivateIPAddr={}".format(private_ip_addr),
+             "Logging.LogFilePath={}/{}".format(our_tempdir,
+                                                "proxyfsd_jrpcclient.log"),
+             "Peer:Peer0.PrivateIPAddr={}".format(private_ip_addr),
              "SwiftClient.NoAuthTCPPort={}".format(ramswift_port),
              "JSONRPCServer.TCPPort={}".format(jsonrpc_port),
              "JSONRPCServer.FastTCPPort={}".format(jsonrpc_fastport),
@@ -157,11 +187,14 @@ def test_jrpcclient():
         # Make sure proxyfsd hasn't exited before we start the tests
         proxyfsd.poll()
         if proxyfsd.returncode:
-            color_printer("Before starting test, nonzero exit status returned from proxyfsd daemon: {}".format(proxyfsd.returncode), color="bright red")
+            color_printer("Before starting test, nonzero exit status returned "
+                          "from proxyfsd daemon: "
+                          "{}".format(proxyfsd.returncode), color="bright red")
             report("jrpcclient tests", not proxyfsd.returncode)
 
             # Print out proxyfsd's stdout since it exited unexpectedly
-            proxyfsd_logfile = "{}/{}".format(our_tempdir, "proxyfsd_jrpcclient.log")
+            proxyfsd_logfile = "{}/{}".format(our_tempdir,
+                                              "proxyfsd_jrpcclient.log")
             logfile = open(proxyfsd_logfile, 'r')
             print(logfile.read())
             logfile.close()
@@ -199,7 +232,8 @@ def test_jrpcclient():
             timer.start()
 
             if not options.verbose_jrpcclient:
-                # This line gets all jrpcclient stdout at once, waits till it's over
+                # This line gets all jrpcclient stdout at once, waits till
+                # it's over
                 jrpcclient_test_stdout, _ = jrpcclient_tests.communicate()
 
                 # Emit test stdout only if there was a failure
@@ -252,7 +286,8 @@ if __name__ == "__main__":
                             help="only build C libraries")
     arg_parser.add_argument('--verbose-jrpcclient', action='store_true',
                             help="EXPERIMENTAL, DO NOT USE! "
-                            "emit jrpcclient test stdout even if no failures")
+                                 "emit jrpcclient test stdout even if no "
+                                 "failures")
     arg_parser.add_argument('--no-install', action='store_true',
                             help="When building C libraries, do not attempt "
                                  "to install resulting objects")
@@ -260,7 +295,8 @@ if __name__ == "__main__":
                             help="Modify commands to run inside "
                                  "swift-deb-builder")
     arg_parser.add_argument('--quiet', '-q', action='store_true',
-                            help="suppress printing of what commands are being run")
+                            help="suppress printing of what commands are being"
+                                 " run")
     options = arg_parser.parse_args()
 
     exit(main(options))
