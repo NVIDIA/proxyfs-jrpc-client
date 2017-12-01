@@ -2407,9 +2407,9 @@ int proxyfs_symlink_path(mount_handle_t* in_mount_handle,
     return rsp_status;
 }
 
-int proxyfs_async_io_send(proxyfs_io_request_t *req)
+int proxyfs_async_send(proxyfs_io_request_t *req)
 {
-    if ((req == NULL) || (req->mount_handle == NULL) || (req->data == NULL)) {
+    if ((req == NULL) || (req->mount_handle == NULL)) {
         return EINVAL;
     }
 

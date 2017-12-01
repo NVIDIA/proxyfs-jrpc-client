@@ -93,6 +93,7 @@ typedef enum io_op_e {
     IO_NONE = 0,
     IO_READ,
     IO_WRITE,
+    IO_FLUSH,
 } io_op_t;
 
 typedef struct proxyfs_io_request_s {
@@ -114,7 +115,7 @@ typedef struct proxyfs_io_request_s {
 } proxyfs_io_request_t;
 
 // API to send async read/write
-int proxyfs_async_io_send(proxyfs_io_request_t *req);
+int proxyfs_async_send(proxyfs_io_request_t *req);
 
 // API to send sync (blocking) read/write
 int proxyfs_sync_io(proxyfs_io_request_t *req);
