@@ -119,7 +119,7 @@ char* funcs[] = {
     "proxyfs_chmod_path",
     "proxyfs_chown",
     "proxyfs_chown_path",
-    "proxyfs_async_io_send",
+    "proxyfs_async_send",
     "proxyfs_statvfs",
 };
 
@@ -1583,7 +1583,7 @@ void test_read_async(file_id_t id, uint64_t offset, uint64_t length, uint8_t* ex
     cb_info->req.done_cb     = test_read_callback;
     cb_info->req.done_cb_arg = (void*)cb_info;
 
-    int err = proxyfs_async_io_send(&cb_info->req);
+    int err = proxyfs_async_send(&cb_info->req);
 
     if (err == 0) {
         // Success; now wait for the callback
@@ -1665,7 +1665,7 @@ void test_write_async(file_id_t id, uint64_t offset, uint64_t length, uint8_t* b
     cb_info->req.done_cb     = test_write_callback;
     cb_info->req.done_cb_arg = (void*)cb_info;
 
-    int err = proxyfs_async_io_send(&cb_info->req);
+    int err = proxyfs_async_send(&cb_info->req);
     if (err == 0) {
         // Success; now wait for the callback
 

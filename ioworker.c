@@ -300,6 +300,8 @@ void *io_worker(void *arg)
                  break;
         case IO_WRITE: ret = proxyfs_write_req(req, sock_fd);
                  break;
+        case IO_FLUSH: req->error = proxyfs_flush(req->mount_handle, req->inode_number);
+                 break;
         default: req->error = EINVAL;
         }
 
