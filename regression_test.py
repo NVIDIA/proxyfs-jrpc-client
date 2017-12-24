@@ -270,9 +270,13 @@ def main(options):
     if not options.quiet:
         logging.basicConfig(format="%(message)s", level=logging.INFO)
 
-    failures = build_jrpcclient(options)
-    if not options.just_build_libs and not options.deb_builder:
-        failures += test_jrpcclient()
+
+    if options.just_test_libs:
+        failures = test_jrpcclient()
+    else:
+        failures = build_jrpcclient(options)
+        if not options.just_build_libs and not options.deb_builder:
+            failures += test_jrpcclient()
 
     return failures
 
@@ -284,6 +288,8 @@ if __name__ == "__main__":
     libs_group = arg_parser.add_mutually_exclusive_group()
     libs_group.add_argument('--just-build-libs', action='store_true',
                             help="only build C libraries")
+    libs_group.add_argument('--just-test-libs', action='store_true',
+                            help="only test C libraries")
     arg_parser.add_argument('--verbose-jrpcclient', action='store_true',
                             help="EXPERIMENTAL, DO NOT USE! "
                                  "emit jrpcclient test stdout even if no "
