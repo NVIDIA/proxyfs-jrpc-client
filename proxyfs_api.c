@@ -14,7 +14,40 @@
 #include <socket.h>
 #include <fault_inj.h>
 
+#include "cswiftclient/cswift.h"
+#include "cswiftclient/sock_pool.h"
+
+#include "proxyfs_io_req.h"
+
 #define MIN(a,b) (((a)<(b))?(a):(b))
+
+// Readplan related data structres and function declarations:
+char *swift_server = "127.0.0.1";
+int swift_port = 8090;
+
+csw_sock_pool_t *global_swift_pool;
+
+typedef struct read_obj_s {
+    range_t   *ranges;
+    int        range_count;
+    char      *obj_path;
+    int        fd;
+
+    struct read_obj_s *next;
+} read_obj_t;
+
+typedef struct read_plan_s {
+    read_obj_t *objs;
+    int        objs_count;
+    char       *data;
+    int        data_size;
+} read_plan_t;
+
+static read_plan_t *buf_to_readplan(char *buf, char *req_data);
+static void free_read_plan(read_plan_t *rp);
+static void insert_range(read_obj_t *obj, int start, int count, char *buf);
+static int read_plan_rec_add(read_plan_t *rp, char *buf, int count, int obj_start, char *obj_path);
+static int process_read_plan(read_plan_t *rp);
 
 // If set, uses "fast" rpc port for reads and writes
 bool use_fastpath_for_read  = true;
@@ -33,7 +66,6 @@ void proxyfs_unset_rw_fastpath()
 }
 
 uint64_t endOfRequest = 0x9988776655443322;
-
 
 typedef enum {
     VOL_NAME = 0,
@@ -1330,7 +1362,8 @@ int proxyfs_read(mount_handle_t* in_mount_handle,
         DPRINTF("%s: calling proxyfs_read_req.\n", __FUNCTION__);
 
         // Call the read request handler
-        rsp_status = proxyfs_read_req(&req, io_sock_fd);
+        //rsp_status = proxyfs_read_req(&req, io_sock_fd);
+        rsp_status = proxyfs_read_plan_req(&req, io_sock_fd);
 
         // Get the status and size out of the response
         //
@@ -1428,19 +1461,13 @@ done:
     return rsp_status;
 }
 
-typedef struct {
-    uint64_t   op_type;
-    uint64_t   mount_id;
-    uint64_t   inode_number;
-    uint64_t   offset;
-    uint64_t   length;
-} io_req_hdr_t;
-
-typedef struct {
-    uint64_t   error;
-    uint64_t   io_size;
-} io_resp_hdr_t;
-
+// TODO - this is the existing code.  We need an option called
+// "direct_io" which controls using the direct_io path VS the
+// existing way.
+//
+// TODO - how do we add options like direct_io to allow only
+// a config change?
+//
 int proxyfs_read_req(proxyfs_io_request_t *req, int sock_fd)
 {
     int           sock_ret;
@@ -1515,6 +1542,194 @@ done:
     }
 
     // XXX TODO: why return anything here if it's always zero?
+    return 0;
+}
+
+
+// buffer format:
+//      uint64_t buf_size //covered bu the readplan
+//      uint64_t range_count
+//      <range records - range_count>:
+//          char *obj_path - NULL terminated.
+//          uint64_t start
+//          uint64_t count
+
+static read_plan_t *buf_to_readplan(char *buf, char *req_data) {
+    read_plan_t *rp = (read_plan_t *)malloc(sizeof(read_plan_t));
+    bzero(rp, sizeof(read_plan_t));
+
+    rp->data_size = *((uint64_t *)buf);
+    buf += 8;
+
+    bzero(req_data, rp->data_size);
+    rp->data = req_data;
+
+    int range_count = *((uint64_t *)buf);
+    buf += 8;
+    int i = 0;
+    for (i = 0; i < range_count; i++) {
+        char *obj_path = buf;
+        buf += strlen(buf);
+        int start = *((uint64_t *)buf);
+        buf += 8;
+        int count = *((uint64_t *)buf);
+        buf += 8;
+        read_plan_rec_add(rp, req_data, count, start, obj_path);
+        req_data += count;
+    }
+
+    return rp;
+}
+
+static void free_read_plan(read_plan_t *rp) {
+    if (rp == NULL) {
+        return;
+    }
+
+    read_obj_t *objs = rp->objs;
+    while (objs) {
+        read_obj_t *tmp = objs;
+        objs = objs->next;
+        free(tmp->ranges);
+        free(tmp->obj_path);
+        free(tmp);
+    }
+
+    free(rp);
+}
+
+static void insert_range(read_obj_t *obj, int start, int count, char *buf) {
+    obj->ranges = (range_t *)realloc(obj->ranges, sizeof(range_t) * (obj->range_count + 1));
+    obj->ranges[obj->range_count].start = start;
+    obj->ranges[obj->range_count].end = start + count;
+    obj->ranges[obj->range_count].data = buf;
+    obj->ranges[obj->range_count].data_size = count;
+    obj->range_count++;
+}
+
+static int read_plan_rec_add(read_plan_t *rp, char *buf, int count, int obj_start, char *obj_path) {
+    // Check if the object is already present, if so, then add the entry:
+    int i = 0;
+    read_obj_t *obj = rp->objs;
+    for (i = 0; i < rp->objs_count && obj != NULL; i++, obj = obj->next) {
+        if (strcmp(obj->obj_path, obj_path) == 0) {
+            insert_range(obj, obj_start, count, buf);
+            return 0;
+        }
+    }
+
+    obj = (read_obj_t *)malloc(sizeof(read_obj_t));
+    obj->obj_path = strdup(obj_path);
+    obj->range_count = obj->fd = 0;
+    obj->ranges = NULL;
+    obj->next = rp->objs;
+    rp->objs = obj;
+    rp->objs_count++;
+
+    insert_range(obj, obj_start, count, buf);
+
+    return 0;
+}
+
+static int process_read_plan(read_plan_t *rp) {
+    int i = 0;
+    int err = 0;
+    read_obj_t *obj = rp->objs;
+
+    // TBD: Optimize the code to work with available sockets instead of waiting for all the sockets to become available.
+    for (i = 0; i < rp->objs_count && obj != NULL; i++, obj = obj->next) {
+        obj->fd = csw_sock_get(global_swift_pool);
+    }
+
+    for (i = 0, obj = rp->objs; i < rp->objs_count && obj != NULL; i++, obj = obj->next) {
+        int err = csw_get_request(obj->fd, obj->obj_path, swift_server, swift_port, NULL, obj->ranges, obj->range_count);
+        if (err != 0) {
+            goto done;
+        }
+    }
+
+    for (i = 0, obj = rp->objs; i < rp->objs_count && obj != NULL; obj = obj->next) {
+        int err = csw_get_response(obj->fd, NULL, obj->ranges, obj->range_count);
+        if (err != 0) {
+            goto done;
+        }
+    }
+
+done:
+    for (i = 0; i < rp->objs_count && obj != NULL; i++, obj = obj->next) {
+        csw_sock_put(global_swift_pool, obj->fd);
+    }
+
+    return err;
+}
+
+int proxyfs_read_plan_req(proxyfs_io_request_t *req, int sock_fd)
+{
+    int err = 0;
+
+    io_req_hdr_t  req_hdr = {
+        .op_type      = REQ_READPLAN,
+        .mount_id     = req->mount_handle->mount_id,
+        .inode_number = req->inode_number,
+        .offset       = req->offset,
+        .length       = req->length,
+    };
+
+    io_resp_hdr_t resp_hdr;
+
+    if ((req == NULL) || (req->mount_handle == NULL) || (req->data == NULL)) {
+        return EINVAL;
+    }
+
+    err = write_to_socket(sock_fd, &req_hdr, sizeof(req_hdr));
+    if (err != 0) {
+        req->error = -EIO;
+        goto done;
+    }
+
+    // Receive response header
+    err = read_from_socket(sock_fd, &resp_hdr, sizeof(resp_hdr));
+    if (err != 0) {
+        req->error = -EIO;
+        goto done;
+    }
+
+    if (resp_hdr.io_size == 0) {
+        req->out_size = 0;
+        req->error = 0;
+        goto done;
+    }
+
+    char *read_plan_buf = (char *)malloc(resp_hdr.io_size);
+    err = read_from_socket(sock_fd, read_plan_buf, resp_hdr.io_size);
+    if (err != 0) {
+        err = -err;
+        if ((err == EPIPE) || (err == ENODEV) || (err = EBADF)) {
+            // TBD: Build a proper error handling mechanism to retry the operation.
+            PANIC("Failed to read response from proxyfsd <-> rpc client socket\n");
+        }
+        req->error = err;
+        goto done;
+    }
+
+    read_plan_t *rp = buf_to_readplan(read_plan_buf, req->data);
+
+    err = process_read_plan(rp);
+    if (err != 0) {
+        req->error = err;
+    } else {
+        req->error = 0;
+        req->out_size = rp->data_size;
+    }
+
+    free_read_plan(rp);
+
+done:
+    // Special handling for read/write/flush: translate ENOENT to EBADF
+    if (req->error == ENOENT) {
+        req->error = EBADF;
+    }
+
     return 0;
 }
 
@@ -2426,6 +2641,9 @@ int proxyfs_sync_io(proxyfs_io_request_t *req)
     switch (req->op) {
         case IO_READ:
             ret = proxyfs_read_req(req, io_sock_fd);
+            break;
+        case IO_READ_PLAN:
+            ret = proxyfs_read_plan_req(req, io_sock_fd);
             break;
         case IO_WRITE:
             ret = proxyfs_write_req(req, io_sock_fd);

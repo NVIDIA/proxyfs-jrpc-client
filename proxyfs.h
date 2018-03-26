@@ -15,7 +15,8 @@
 #include <sys/queue.h>
 
 // Set JSON RPC particulars... as a 3-tuple or via <IPAddr>:<TCPPort>/<FastTCPPort> string
-void rpc_config_set(const char *set_rpc_server, int set_rpc_port, int set_rpc_fast_port);
+void rpc_config_set(const char *set_rpc_server, int set_rpc_port, int set_rpc_fast_port,
+                    const char *set_swift_server, int set_swift_port);
 void rpc_config_parse(const char *rpc_config_string);
 
 // Forward declaration so that we don't have to include the real definition
@@ -92,6 +93,7 @@ typedef struct {
 typedef enum io_op_e {
     IO_NONE = 0,
     IO_READ,
+    IO_READ_PLAN,
     IO_WRITE,
     IO_FLUSH,
 } io_op_t;

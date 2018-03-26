@@ -13,11 +13,14 @@
 #include <string.h>
 #include <syslog.h>
 
+#include "proxyfs_io_req.h"
+
 static char rpc_server[128];
 static int  rpc_port;
 static int  rpc_fast_port;
 
-void rpc_config_set(const char *set_rpc_server, int set_rpc_port, int set_rpc_fast_port)
+void rpc_config_set(const char *set_rpc_server, int set_rpc_port, int set_rpc_fast_port,
+                    const char *set_swift_server, int set_swift_port)
 {
     size_t rpc_server_len = strlen(set_rpc_server);
 
@@ -27,6 +30,9 @@ void rpc_config_set(const char *set_rpc_server, int set_rpc_port, int set_rpc_fa
 
     rpc_port      = set_rpc_port;
     rpc_fast_port = set_rpc_fast_port;
+
+    swift_server = strdup(set_swift_server);
+    swift_port = set_swift_port;
 }
 
 void rpc_config_parse(const char *rpc_config_string)
@@ -80,6 +86,7 @@ struct rpc_handle_t {
 // * This API will be called probably on a per-mount basis. We'll need to decide whether to
 //   create a new TCP connection per call, or cache it underneath.
 //
+
 jsonrpc_handle_t* pfs_rpc_open()
 {
     if ( fail(RPC_CONNECT_FAULT) ) {
@@ -117,11 +124,23 @@ jsonrpc_handle_t* pfs_rpc_open()
         if (global_sock_pool == NULL) {
             free(handle);
             handle = NULL;
+            return handle;
         }
     } else {
         DPRINTF("pfs_rpc_open: no need to create global_sock_pool=%p, already open.\n", global_sock_pool);
     }
 
+    if (global_swift_pool == NULL) {
+        global_swift_pool = csw_sock_pool_alloc(swift_server, swift_port, GLOBAL_SWIFT_POOL_COUNT);
+        if (global_swift_pool == NULL) {
+            if (global_sock_pool) {
+                sock_pool_destroy(global_sock_pool, true);
+            }
+            free(handle);
+            handle = NULL;
+            return handle;
+        }
+    }
     return handle;
 }
 

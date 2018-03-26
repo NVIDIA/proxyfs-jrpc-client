@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-I. -I/opt/ss/include -fPIC -g
 # The -lrt flag is needed to avoid a link error related to clock_* methods if glibc < 2.17
-LDFLAGS += -ljson-c -lpthread -L/opt/ss/lib64 -lrt -lm
+LDFLAGS += -ljson-c -lpthread -L/opt/ss/lib64 -lrt -lm -lcswift
 DEPS = proxyfs.h
 LIBINSTALL?=/usr/lib
 LIBINSTALL_CENTOS?=/usr/lib64
