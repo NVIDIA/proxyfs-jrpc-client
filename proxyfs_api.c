@@ -1631,8 +1631,6 @@ static int read_plan_rec_add(read_plan_t *rp, char *buf, int count, int obj_star
     return 0;
 }
 
-#define MAX_READ_RETRY 10 // TBD: Place it in the right place.
-
 static int process_read_plan(read_plan_t *rp) {
     int i = 0;
     int err = 0;
