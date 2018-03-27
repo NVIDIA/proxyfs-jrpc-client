@@ -298,9 +298,11 @@ void *io_worker(void *arg)
         int ret = 0;
         switch (req->op) {
         case IO_READ:
-                 // ret = proxyfs_read_req(req, sock_fd);
-                 // break;
-        case IO_READ_PLAN: ret = proxyfs_read_plan_req(req, sock_fd);
+                 if (direct_io) {
+                    ret = proxyfs_read_plan_req(req, sock_fd);
+                 } else {
+                    ret = proxyfs_read_req(req, sock_fd);
+                 }
                  break;
         case IO_WRITE: ret = proxyfs_write_req(req, sock_fd);
                  break;

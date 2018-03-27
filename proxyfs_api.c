@@ -1072,6 +1072,8 @@ int proxyfs_mkdir_path(mount_handle_t* in_mount_handle,
     return rsp_status;
 }
 
+int direct_io = 1;
+
 int proxyfs_mount(char*            in_volume_name,
                   uint64_t         in_mount_options,
                   uint64_t         in_auth_user_id,
@@ -1086,6 +1088,9 @@ int proxyfs_mount(char*            in_volume_name,
         DPRINTF("Error, volume name %s is longer than max length of %d.\n",in_volume_name,MAX_VOL_NAME_LENGTH);
         return EINVAL;
     }
+
+    direct_io = in_mount_options & OPT_DIRECT_IO_READ ? 1 : 0;
+    in_mount_options &= ~OPT_DIRECT_IO_READ;
 
     // Alloc memory for handle to return and fill it in
     //
@@ -1362,8 +1367,11 @@ int proxyfs_read(mount_handle_t* in_mount_handle,
         DPRINTF("%s: calling proxyfs_read_req.\n", __FUNCTION__);
 
         // Call the read request handler
-        //rsp_status = proxyfs_read_req(&req, io_sock_fd);
-        rsp_status = proxyfs_read_plan_req(&req, io_sock_fd);
+        if (direct_io) {
+            rsp_status = proxyfs_read_plan_req(&req, io_sock_fd);
+        } else {
+            rsp_status = proxyfs_read_req(&req, io_sock_fd);
+        }
 
         // Get the status and size out of the response
         //
@@ -1656,7 +1664,7 @@ static int process_read_plan(read_plan_t *rp) {
     }
 
 done:
-    for (i = 0; i < rp->objs_count && obj != NULL; i++, obj = obj->next) {
+    for (i = 0, obj = rp->objs; i < rp->objs_count && obj != NULL; i++, obj = obj->next) {
         csw_sock_put(global_swift_pool, obj->fd);
     }
 
@@ -2653,10 +2661,11 @@ int proxyfs_sync_io(proxyfs_io_request_t *req)
 
     switch (req->op) {
         case IO_READ:
-            ret = proxyfs_read_req(req, io_sock_fd);
-            break;
-        case IO_READ_PLAN:
-            ret = proxyfs_read_plan_req(req, io_sock_fd);
+            if (direct_io) {
+                ret = proxyfs_read_plan_req(req, io_sock_fd);
+            } else {
+                ret = proxyfs_read_req(req, io_sock_fd);
+            }
             break;
         case IO_WRITE:
             ret = proxyfs_write_req(req, io_sock_fd);

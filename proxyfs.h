@@ -27,6 +27,10 @@ typedef struct rpc_handle_t jsonrpc_handle_t;
 #define MAX_VOL_NAME_LENGTH   128
 #define MAX_USER_NAME_LENGTH  128
 
+// Mount options:
+#define OPT_READ_ONLY      0x01
+#define OPT_DIRECT_IO_READ 0x02
+
 typedef struct {
     jsonrpc_handle_t* rpc_handle;
     uint64_t          mount_id;
@@ -93,7 +97,6 @@ typedef struct {
 typedef enum io_op_e {
     IO_NONE = 0,
     IO_READ,
-    IO_READ_PLAN,
     IO_WRITE,
     IO_FLUSH,
 } io_op_t;
