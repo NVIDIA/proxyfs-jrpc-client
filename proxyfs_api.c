@@ -1631,6 +1631,8 @@ static int read_plan_rec_add(read_plan_t *rp, char *buf, int count, int obj_star
     return 0;
 }
 
+#define MAX_READ_RETRY 10 // TBD: Place it in the right place.
+
 static int process_read_plan(read_plan_t *rp) {
     int i = 0;
     int err = 0;
@@ -1665,9 +1667,10 @@ done:
 
 int proxyfs_read_plan_req(proxyfs_io_request_t *req, int sock_fd)
 {
+    int err_count = 0;
     int err = 0;
 
-    io_req_hdr_t  req_hdr = {
+    io_req_hdr_t req_hdr = {
         .op_type      = REQ_READPLAN,
         .mount_id     = req->mount_handle->mount_id,
         .inode_number = req->inode_number,
@@ -1681,6 +1684,7 @@ int proxyfs_read_plan_req(proxyfs_io_request_t *req, int sock_fd)
         return EINVAL;
     }
 
+restart:
     err = write_to_socket(sock_fd, &req_hdr, sizeof(req_hdr));
     if (err != 0) {
         req->error = EIO;
@@ -1718,6 +1722,7 @@ int proxyfs_read_plan_req(proxyfs_io_request_t *req, int sock_fd)
     }
 
     read_plan_t *rp = buf_to_readplan(read_plan_buf, req->data);
+    free(read_plan_buf);
 
     err = process_read_plan(rp);
     if (err != 0) {
@@ -1729,6 +1734,11 @@ int proxyfs_read_plan_req(proxyfs_io_request_t *req, int sock_fd)
 
     free_read_plan(rp);
 
+    if (err != 0 && err_count < MAX_READ_RETRY) {
+        err_count++;
+        err = 0;
+        goto restart;
+    }
 done:
     // Special handling for read/write/flush: translate ENOENT to EBADF
     if (req->error == ENOENT) {

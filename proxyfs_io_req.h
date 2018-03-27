@@ -10,6 +10,8 @@ extern int swift_port;
 extern csw_sock_pool_t *global_swift_pool;
 #define GLOBAL_SWIFT_POOL_COUNT 100
 
+#define MAX_READ_RETRY 10 // Max retry if we fail to get the data for the read plan from swift.
+
 typedef enum {
     REQ_WRITE    = 1001,
     REQ_READ     = 1002,
