@@ -243,6 +243,7 @@ int csw_get_content_length(header_t *hdr) {
         if (strcmp(tag->key, "Content-Length") == 0) {
             return atoi(tag->val);
         }
+        tag = tag->next;
     }
 
     return 0;

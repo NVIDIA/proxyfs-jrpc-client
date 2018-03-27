@@ -67,10 +67,28 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    csw_free_header(hdr);
     int i = 0;
     for (i = 0; i < 3; i++) {
         printf("range %d <%d-%d>: %s\n", i, ranges[i].start, ranges[i].end, ranges[i].data);
     }
+
+    bzero(ranges[0].data, 10);
+
+    err = csw_get_request(fd, path, server, port, auth_token, ranges, 1);
+    if (err != 0) {
+        printf("get_request_2 failed with err = %d\n", err);
+        return -1;
+    }
+
+    hdr = NULL;
+    err = csw_get_response(fd, &hdr, ranges, 1);
+    if (err != 0) {
+        printf("get_response_2 failed with err = %d\n", err);
+        return -1;
+    }
+
+    printf("range 0 <%d-%d>: %s\n", ranges[0].start, ranges[0].end, ranges[0].data);
 
     csw_sock_put(pool, fd);
 }

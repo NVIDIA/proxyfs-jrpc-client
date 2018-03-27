@@ -1660,7 +1660,7 @@ done:
         csw_sock_put(global_swift_pool, obj->fd);
     }
 
-    return err;
+    return -err;
 }
 
 int proxyfs_read_plan_req(proxyfs_io_request_t *req, int sock_fd)
@@ -1683,14 +1683,19 @@ int proxyfs_read_plan_req(proxyfs_io_request_t *req, int sock_fd)
 
     err = write_to_socket(sock_fd, &req_hdr, sizeof(req_hdr));
     if (err != 0) {
-        req->error = -EIO;
+        req->error = EIO;
         goto done;
     }
 
     // Receive response header
     err = read_from_socket(sock_fd, &resp_hdr, sizeof(resp_hdr));
     if (err != 0) {
-        req->error = -EIO;
+        req->error = EIO;
+        goto done;
+    }
+
+    if (resp_hdr.error != 0) {
+        req->error = resp_hdr.error;
         goto done;
     }
 
@@ -2777,7 +2782,7 @@ int proxyfs_write(mount_handle_t* in_mount_handle,
     if (use_fastpath_for_write) {
 
         proxyfs_io_request_t req = {
-            .op           = IO_READ,
+            .op           = IO_WRITE,
             .mount_handle = in_mount_handle,
             .inode_number = in_inode_number,
             .offset       = in_offset,

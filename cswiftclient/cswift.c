@@ -88,12 +88,13 @@ int csw_get_request(int fd, char *path, char *server, int port, char *auth_token
 
     // Write the request to socket: TBD: apply a retry loop logic here.
     int ret = csw_sock_write(fd, req_buf, strlen(req_buf));
-    free(req_buf);
 
     if (ret != strlen(req_buf)) {
+        free(req_buf);
         return -1;
     }
 
+    free(req_buf);
     return 0;
 }
 
@@ -112,15 +113,23 @@ int csw_get_response(int fd, header_t **headersp, range_t *ranges, int range_cou
 
     int i;
 
-    if (range_count == 0) {
-        int size = csw_get_content_length(hdr);
-        err = csw_sock_read(fd, ranges[0].data, size);
-        ranges[0].end = ranges[0].start + size;
-
-        if (err <= 0) {
+    if (range_count == 1) {
+        ranges[0].data_size = csw_get_content_length(hdr);
+        if (ranges[0].data_size == 0) {
             csw_free_header(hdr);
+            return 0;
         }
-        return err;
+
+        err = csw_sock_read(fd, ranges[0].data, ranges[0].data_size);
+        if (err <= 0) {
+            if (err == 0) {
+                err = -EBADF;
+            }
+            csw_free_header(hdr);
+            return err;
+        }
+
+        return 0;
     }
 
     int bsize = csw_get_boundary_info(hdr, NULL);
