@@ -4,6 +4,7 @@
 #include <proxyfs.h>
 #include <inttypes.h>
 
+#include "cswiftclient/cswift.h"
 #include "cswiftclient/sock_pool.h"
 extern char *swift_server;
 extern int swift_port;
@@ -31,6 +32,37 @@ typedef struct {
     uint64_t   error;
     uint64_t   io_size;
 } io_resp_hdr_t;
+
+
+typedef struct read_obj_s {
+    range_t   *ranges;
+    int        range_count;
+    char      *obj_path;
+    int        fd;
+
+    struct read_obj_s *next;
+} read_obj_t;
+
+typedef struct read_io_plan_s {
+    read_obj_t  *objs;
+    int         objs_count;
+    char        *data;
+    int         data_size;
+} read_io_plan_t;
+
+typedef struct read_plan_range_s {
+    char     *obj_path;
+    uint64_t obj_start;
+    uint64_t offset;
+    uint64_t size;
+} read_plan_range_t;
+
+typedef struct read_plan_s {
+    uint64_t inode_number;
+    uint64_t file_size;
+    uint64_t range_count;
+    read_plan_range_t  *ranges;
+} read_plan_t;
 
 int proxyfs_read_req(proxyfs_io_request_t *req, int sock_fd);
 int proxyfs_read_plan_req(proxyfs_io_request_t *req, int sock_fd);

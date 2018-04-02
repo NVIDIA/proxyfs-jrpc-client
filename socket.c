@@ -249,3 +249,55 @@ int sock_write(const char* buf) {
 
     return rtnVal;
 }
+
+
+// Reads precisely the specified length of data from sockfd
+//
+// Returns either:
+//   0: requested number of bytes copied from sockfd to bufptr
+//   otherwise: errno
+int read_from_socket(int sockfd, void *bufptr, int length) {
+    int ret = 0;
+    int total = 0;
+    while (total < length) {
+        char *addr = bufptr + total;
+        ret = read(sockfd, addr, length - total);
+        if (ret < 0) {
+            if (errno == EAGAIN) {
+                continue;
+            }
+            return -errno;
+        }
+
+        if (ret == 0) {
+            DPRINTF("proxyfsd server side disconnected while reading reply from socket.\n");
+            return -EPIPE;
+        }
+        total += ret;
+    }
+
+    return 0;
+}
+
+// Writes precisely the specified length of data to sockfd
+//
+// Returns either:
+//   0: requested number of bytes copied from bufptr to sockfd
+//   otherwise: errno
+int write_to_socket(int sockfd, void *bufptr, int length) {
+    int ret = 0;
+    int total = 0;
+    while (total < length) {
+        char *addr = bufptr + total;
+        ret = write(sockfd, addr, length - total);
+        if (ret < 0) {
+            if (errno == EAGAIN) {
+                continue;
+            }
+            return -errno;
+        }
+        total += ret;
+    }
+
+    return 0;
+}

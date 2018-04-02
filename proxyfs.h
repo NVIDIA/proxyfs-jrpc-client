@@ -40,6 +40,8 @@ typedef struct {
     uint64_t          auth_user_id;
     uint64_t          auth_group_id;
     char              auth_user[MAX_USER_NAME_LENGTH];
+
+    void              *pvt_data;
 } mount_handle_t;
 
 // NOTE: Both CIFS and NFS need stats to be in sys/stat.h format, i.e. like

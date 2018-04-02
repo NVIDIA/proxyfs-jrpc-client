@@ -14,10 +14,10 @@
 #include <socket.h>
 #include <fault_inj.h>
 
-#include "cswiftclient/cswift.h"
 #include "cswiftclient/sock_pool.h"
 
 #include "proxyfs_io_req.h"
+#include "internal.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
@@ -26,28 +26,6 @@ char *swift_server = "127.0.0.1";
 int swift_port = 8090;
 
 csw_sock_pool_t *global_swift_pool;
-
-typedef struct read_obj_s {
-    range_t   *ranges;
-    int        range_count;
-    char      *obj_path;
-    int        fd;
-
-    struct read_obj_s *next;
-} read_obj_t;
-
-typedef struct read_plan_s {
-    read_obj_t *objs;
-    int        objs_count;
-    char       *data;
-    int        data_size;
-} read_plan_t;
-
-static read_plan_t *buf_to_readplan(char *buf, char *req_data);
-static void free_read_plan(read_plan_t *rp);
-static void insert_range(read_obj_t *obj, int start, int count, char *buf);
-static int read_plan_rec_add(read_plan_t *rp, char *buf, int count, int obj_start, char *obj_path);
-static int process_read_plan(read_plan_t *rp);
 
 // If set, uses "fast" rpc port for reads and writes
 bool use_fastpath_for_read  = true;
@@ -1104,6 +1082,13 @@ int proxyfs_mount(char*            in_volume_name,
     handle->auth_user_id       = in_auth_user_id;
     handle->auth_group_id      = in_auth_group_id;
 
+    mount_pvt_t *pvt = (mount_pvt_t *)malloc(sizeof(mount_pvt_t));
+    pvt->rplans = map_init();
+    pvt->cache_line_size = 0;
+    pvt->cache = NULL;
+
+    handle->pvt_data = (void *)pvt;
+
     strncpy(handle->volume_name, in_volume_name, MAX_VOL_NAME_LENGTH);
     handle->volume_name[MAX_VOL_NAME_LENGTH-1] = 0;
 
@@ -1259,57 +1244,6 @@ int proxyfs_ping(mount_handle_t* in_mount_handle, char* in_ping_message)
     // Clean up jsonrpc context and return
     jsonrpc_close(ctx);
     return rsp_status;
-}
-
-// Reads precisely the specified length of data from sockfd
-//
-// Returns either:
-//   0: requested number of bytes copied from sockfd to bufptr
-//   otherwise: errno
-int read_from_socket(int sockfd, void *bufptr, int length) {
-    int ret = 0;
-    int total = 0;
-    while (total < length) {
-        char *addr = bufptr + total;
-        ret = read(sockfd, addr, length - total);
-        if (ret < 0) {
-            if (errno == EAGAIN) {
-                continue;
-            }
-            return -errno;
-        }
-
-        if (ret == 0) {
-            DPRINTF("proxyfsd server side disconnected while reading reply from socket.\n");
-            return -EPIPE;
-        }
-        total += ret;
-    }
-
-    return 0;
-}
-
-// Writes precisely the specified length of data to sockfd
-//
-// Returns either:
-//   0: requested number of bytes copied from bufptr to sockfd
-//   otherwise: errno
-int write_to_socket(int sockfd, void *bufptr, int length) {
-    int ret = 0;
-    int total = 0;
-    while (total < length) {
-        char *addr = bufptr + total;
-        ret = write(sockfd, addr, length - total);
-        if (ret < 0) {
-            if (errno == EAGAIN) {
-                continue;
-            }
-            return -errno;
-        }
-        total += ret;
-    }
-
-    return 0;
 }
 
 void dump_io_req(proxyfs_io_request_t req, const char* prefix)
@@ -1550,207 +1484,6 @@ done:
     }
 
     // XXX TODO: why return anything here if it's always zero?
-    return 0;
-}
-
-
-// buffer format:
-//      uint64_t buf_size //covered bu the readplan
-//      uint64_t range_count
-//      <range records - range_count>:
-//          char *obj_path - NULL terminated.
-//          uint64_t start
-//          uint64_t count
-
-static read_plan_t *buf_to_readplan(char *buf, char *req_data) {
-    read_plan_t *rp = (read_plan_t *)malloc(sizeof(read_plan_t));
-    bzero(rp, sizeof(read_plan_t));
-
-    rp->data_size = *((uint64_t *)buf);
-    buf += 8;
-
-    bzero(req_data, rp->data_size);
-    rp->data = req_data;
-
-    int range_count = *((uint64_t *)buf);
-    buf += 8;
-    int i = 0;
-    for (i = 0; i < range_count; i++) {
-        char *obj_path = buf;
-        buf += strlen(buf);
-        int start = *((uint64_t *)buf);
-        buf += 8;
-        int count = *((uint64_t *)buf);
-        buf += 8;
-        read_plan_rec_add(rp, req_data, count, start, obj_path);
-        req_data += count;
-    }
-
-    return rp;
-}
-
-static void free_read_plan(read_plan_t *rp) {
-    if (rp == NULL) {
-        return;
-    }
-
-    read_obj_t *objs = rp->objs;
-    while (objs) {
-        read_obj_t *tmp = objs;
-        objs = objs->next;
-        free(tmp->ranges);
-        free(tmp->obj_path);
-        free(tmp);
-    }
-
-    free(rp);
-}
-
-static void insert_range(read_obj_t *obj, int start, int count, char *buf) {
-    obj->ranges = (range_t *)realloc(obj->ranges, sizeof(range_t) * (obj->range_count + 1));
-    obj->ranges[obj->range_count].start = start;
-    obj->ranges[obj->range_count].end = start + count;
-    obj->ranges[obj->range_count].data = buf;
-    obj->ranges[obj->range_count].data_size = count;
-    obj->range_count++;
-}
-
-static int read_plan_rec_add(read_plan_t *rp, char *buf, int count, int obj_start, char *obj_path) {
-    // Check if the object is already present, if so, then add the entry:
-    int i = 0;
-    read_obj_t *obj = rp->objs;
-    for (i = 0; i < rp->objs_count && obj != NULL; i++, obj = obj->next) {
-        if (strcmp(obj->obj_path, obj_path) == 0) {
-            insert_range(obj, obj_start, count, buf);
-            return 0;
-        }
-    }
-
-    obj = (read_obj_t *)malloc(sizeof(read_obj_t));
-    obj->obj_path = strdup(obj_path);
-    obj->range_count = obj->fd = 0;
-    obj->ranges = NULL;
-    obj->next = rp->objs;
-    rp->objs = obj;
-    rp->objs_count++;
-
-    insert_range(obj, obj_start, count, buf);
-
-    return 0;
-}
-
-static int process_read_plan(read_plan_t *rp) {
-    int i = 0;
-    int err = 0;
-    read_obj_t *obj = rp->objs;
-
-    // TBD: Optimize the code to work with available sockets instead of waiting for all the sockets to become available.
-    for (i = 0; i < rp->objs_count && obj != NULL; i++, obj = obj->next) {
-        obj->fd = csw_sock_get(global_swift_pool);
-    }
-
-    for (i = 0, obj = rp->objs; i < rp->objs_count && obj != NULL; i++, obj = obj->next) {
-        int err = csw_get_request(obj->fd, obj->obj_path, swift_server, swift_port, NULL, obj->ranges, obj->range_count);
-        if (err != 0) {
-            goto done;
-        }
-    }
-
-    for (i = 0, obj = rp->objs; i < rp->objs_count && obj != NULL; obj = obj->next) {
-        int err = csw_get_response(obj->fd, NULL, obj->ranges, obj->range_count);
-        if (err != 0) {
-            goto done;
-        }
-    }
-
-done:
-    for (i = 0, obj = rp->objs; i < rp->objs_count && obj != NULL; i++, obj = obj->next) {
-        csw_sock_put(global_swift_pool, obj->fd);
-    }
-
-    return -err;
-}
-
-int proxyfs_read_plan_req(proxyfs_io_request_t *req, int sock_fd)
-{
-    int err_count = 0;
-    int err = 0;
-
-    io_req_hdr_t req_hdr = {
-        .op_type      = REQ_READPLAN,
-        .mount_id     = req->mount_handle->mount_id,
-        .inode_number = req->inode_number,
-        .offset       = req->offset,
-        .length       = req->length,
-    };
-
-    io_resp_hdr_t resp_hdr;
-
-    if ((req == NULL) || (req->mount_handle == NULL) || (req->data == NULL)) {
-        return EINVAL;
-    }
-
-restart:
-    err = write_to_socket(sock_fd, &req_hdr, sizeof(req_hdr));
-    if (err != 0) {
-        req->error = EIO;
-        goto done;
-    }
-
-    // Receive response header
-    err = read_from_socket(sock_fd, &resp_hdr, sizeof(resp_hdr));
-    if (err != 0) {
-        req->error = EIO;
-        goto done;
-    }
-
-    if (resp_hdr.error != 0) {
-        req->error = resp_hdr.error;
-        goto done;
-    }
-
-    if (resp_hdr.io_size == 0) {
-        req->out_size = 0;
-        req->error = 0;
-        goto done;
-    }
-
-    char *read_plan_buf = (char *)malloc(resp_hdr.io_size);
-    err = read_from_socket(sock_fd, read_plan_buf, resp_hdr.io_size);
-    if (err != 0) {
-        err = -err;
-        if ((err == EPIPE) || (err == ENODEV) || (err = EBADF)) {
-            // TBD: Build a proper error handling mechanism to retry the operation.
-            PANIC("Failed to read response from proxyfsd <-> rpc client socket\n");
-        }
-        req->error = err;
-        goto done;
-    }
-
-    read_plan_t *rp = buf_to_readplan(read_plan_buf, req->data);
-    free(read_plan_buf);
-
-    err = process_read_plan(rp);
-    if (err != 0) {
-        req->error = err;
-    } else {
-        req->error = 0;
-        req->out_size = rp->data_size;
-    }
-
-    free_read_plan(rp);
-
-    if (err != 0 && err_count < MAX_READ_RETRY) {
-        err_count++;
-        err = 0;
-        goto restart;
-    }
-done:
-    // Special handling for read/write/flush: translate ENOENT to EBADF
-    if (req->error == ENOENT) {
-        req->error = EBADF;
-    }
-
     return 0;
 }
 

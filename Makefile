@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-I. -I/opt/ss/include -fPIC -g
 # The -lrt flag is needed to avoid a link error related to clock_* methods if glibc < 2.17
-LDFLAGS += -ljson-c -lpthread -L/opt/ss/lib64 -lrt -lm -lcswift
+LDFLAGS += -ljson-c -lpthread -L/opt/ss/lib64 -lrt -lm -lcswift -lccache
 DEPS = proxyfs.h
 LIBINSTALL?=/usr/lib
 LIBINSTALL_CENTOS?=/usr/lib64
@@ -12,14 +12,14 @@ INCLUDEDIR?=/usr/include
 
 all: libproxyfs.so.1.0.0 test
 
-libproxyfs.so.1.0.0: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o
-	$(CC) -shared -fPIC -Wl,-soname,libproxyfs.so.1 -o libproxyfs.so.1.0.0 proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o $(LDFLAGS) -lc
+libproxyfs.so.1.0.0: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o read.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o
+	$(CC) -shared -fPIC -Wl,-soname,libproxyfs.so.1 -o libproxyfs.so.1.0.0 proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o read.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o $(LDFLAGS) -lc
 	ln -f -s ./libproxyfs.so.1.0.0 ./libproxyfs.so.1
 	ln -f -s ./libproxyfs.so.1.0.0 ./libproxyfs.so
 
 
-test: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o test.o
-	$(CC) -o test proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o test.o $(CFLAGS) $(LDFLAGS)
+test: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o read.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o test.o
+	$(CC) -o test proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o read.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o test.o $(CFLAGS) $(LDFLAGS)
 
 install:
 	cp -f libproxyfs.so.1.0.0 $(LIBINSTALL)/libproxyfs.so.1.0.0

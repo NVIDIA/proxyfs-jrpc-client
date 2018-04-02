@@ -6,7 +6,6 @@
 // int io_workers_stop();
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <errno.h>
 #include <string.h>
 #include <sys/time.h>
