@@ -30,7 +30,7 @@ install:
 	ln -f -s $(LIBINSTALL)/libcswift.so.1.0.0 $(LIBINSTALL)/libcswift.so.1
 	ln -f -s $(LIBINSTALL)/libcswift.so.1.0.0 $(LIBINSTALL)/libcswift.so
 
-installcentos:
+installcentos: all
 	cp -f libcswift.so.1.0.0 $(LIBINSTALL_CENTOS)/libcswift.so.1.0.0
 	ln -f -s $(LIBINSTALL_CENTOS)/libcswift.so.1.0.0 $(LIBINSTALL_CENTOS)/libcswift.so.1
 	ln -f -s $(LIBINSTALL_CENTOS)/libcswift.so.1.0.0 $(LIBINSTALL_CENTOS)/libcswift.so
