@@ -27,7 +27,7 @@ install:
 	ln -f -s $(LIBINSTALL)/libccache.so.1.0.0 $(LIBINSTALL)/libccache.so.1
 	ln -f -s $(LIBINSTALL)/libccache.so.1.0.0 $(LIBINSTALL)/libccache.so
 
-installcentos:
+installcentos: all
 	cp -f libccache.so.1.0.0 $(LIBINSTALL_CENTOS)/libccache.so.1.0.0
 	ln -f -s $(LIBINSTALL_CENTOS)/libccache.so.1.0.0 $(LIBINSTALL_CENTOS)/libccache.so.1
 	ln -f -s $(LIBINSTALL_CENTOS)/libccache.so.1.0.0 $(LIBINSTALL_CENTOS)/libccache.so

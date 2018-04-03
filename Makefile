@@ -10,9 +10,9 @@ INCLUDEDIR?=/usr/include
 %.o: %.c $(DEPS)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-all: libproxyfs.so.1.0.0 test libcswift.so
+all: libproxyfs.so.1.0.0 test libcswift.so libccache.so
 
-libproxyfs.so.1.0.0: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o read.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o libcswift.so
+libproxyfs.so.1.0.0: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o read.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o libcswift.so libccache.so
 	$(CC) -shared -fPIC -Wl,-soname,libproxyfs.so.1 -o libproxyfs.so.1.0.0 proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o read.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o $(LDFLAGS) -lc
 	ln -f -s ./libproxyfs.so.1.0.0 ./libproxyfs.so.1
 	ln -f -s ./libproxyfs.so.1.0.0 ./libproxyfs.so
@@ -20,6 +20,10 @@ libproxyfs.so.1.0.0: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o read.o j
 libcswift.so:
 	$(MAKE) -w -C cswiftclient all
 	$(MAKE) -w -C cswiftclient installcentos
+
+libccache.so:
+	$(MAKE) -w -C cache all
+	$(MAKE) -w -C cache installcentos
 
 test: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o read.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o test.o
 	$(CC) -o test proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o read.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o test.o $(CFLAGS) $(LDFLAGS)
