@@ -42,4 +42,6 @@ installcentos:
 
 clean:
 	rm -f *.o libproxyfs.so.1.0.0 ./libproxyfs.so.1 ./libproxyfs.so test pfs_log pfs_ping pfs_rw
+	$(MAKE) -w -C cswiftclient clean
+	$(MAKE) -w -C cache clean
 
