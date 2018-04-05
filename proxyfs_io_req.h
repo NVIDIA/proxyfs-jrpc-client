@@ -70,6 +70,7 @@ typedef struct read_plan_range_s {
 typedef struct read_plan_s {
     uint64_t inode_number;
     uint64_t file_size;
+    uint64_t read_plan_size;
     uint64_t range_count;
     read_plan_range_t  *ranges;
 } read_plan_t;

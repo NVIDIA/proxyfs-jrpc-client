@@ -398,6 +398,9 @@ static read_plan_t *buf_to_readplan(char *buf, uint64_t offset) {
     rp->file_size = *((uint64_t *)buf);
     buf += 8;
 
+    rp->read_plan_size = *((uint64_t *)buf);
+    buf += 8;
+
     rp->range_count = *((uint64_t *)buf);
     buf += 8;
     int i = 0;
