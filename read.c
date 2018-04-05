@@ -104,7 +104,7 @@ retry:
 
             range_t *range = &obj->ranges[idx];
 
-            for (off = range->start; off <= range->end; off += fill_cnt, buf_off += fill_cnt)  {
+            for (off = range->start; off < range->end; off += fill_cnt, buf_off += fill_cnt)  {
                 uint64_t seg = off / pvt->cache_line_size;
                 sprintf(key, "%s_%016llx", obj->obj_path, seg);
 
@@ -118,7 +118,7 @@ retry:
                     }
 
                     int data_size;
-                    int err = get_data(pvt, key, seg * pvt->cache_line_size, pvt->cache_line_size, &data, &data_size);
+                    int err = get_data(pvt, obj->obj_path, seg * pvt->cache_line_size, pvt->cache_line_size, &data, &data_size);
                     if (err != 0) {
                         free_read_io_plan(io_plan);
                         // Failed to read from the key, we have a stale plan, start all over again!
@@ -129,11 +129,11 @@ retry:
                 }
 
                 fill_cnt = pvt->cache_line_size - (off % pvt->cache_line_size);
-                if (fill_cnt > obj->ranges[idx].end - off + 1) {
-                    fill_cnt = obj->ranges[idx].end - off + 1;
+                if (fill_cnt > obj->ranges[idx].end - off) {
+                    fill_cnt = obj->ranges[idx].end - off;
                 }
 
-                bcopy(&range->data[buf_off], &data[off % pvt->cache_line_size], fill_cnt);
+                bcopy( &data[off % pvt->cache_line_size], &range->data[buf_off], fill_cnt);
             }
         }
     }
@@ -243,6 +243,9 @@ int get_data(mount_pvt_t *pvt, char *path, uint64_t offset, uint64_t length, cha
         err = csw_get_response(fd, NULL, &range, 1);
     }
     csw_sock_put(global_swift_pool, fd);
+
+    *data_size = range.data_size;
+    *data = range.data;
 
     return err;
 }

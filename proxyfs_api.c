@@ -1093,8 +1093,8 @@ int proxyfs_mount(char*            in_volume_name,
 
     mount_pvt_t *pvt = (mount_pvt_t *)malloc(sizeof(mount_pvt_t));
     pvt->rplans = map_init();
-    pvt->cache_line_size = 0;
-    pvt->cache = NULL;
+    pvt->cache_line_size = 1048576;
+    pvt->cache = cache_init(pvt->cache_line_size * 1024);
 
     handle->pvt_data = (void *)pvt;
 
