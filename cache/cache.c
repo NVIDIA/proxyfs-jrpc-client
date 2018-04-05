@@ -5,11 +5,13 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <errno.h>
+#include <stdbool.h>
 
 typedef struct cache_entry_s {
     char *key;
     void *value;
     int   size;
+    bool evictable;
     void (*evict_cb)(void *);
 
     TAILQ_ENTRY(cache_entry_s) entry;
@@ -38,7 +40,8 @@ cache_t *cache_init(int cache_size) {
     return cache;
 }
 
-int cache_insert(cache_t *cache, char *key, void *val, int size, void (*evict_cb)(void *)) {
+int cache_insert(cache_t *cache, char *key, void *val, int size, void (*evict_cb)(void *),
+    bool evictable) {
 
     TAILQ_HEAD(entries_head, cache_entry_s) evict_ents;
     TAILQ_INIT(&evict_ents);
@@ -62,17 +65,32 @@ int cache_insert(cache_t *cache, char *key, void *val, int size, void (*evict_cb
     ent->value = val;
     ent->size = size;
     ent->evict_cb = evict_cb;
+    ent->evictable = evictable;
 
-    // Make room for this entry in the cache:
+    // Make room for this entry in the cache.  Only works for
+    // items which are flagged evictable.
     int free_space = cache->total_size - cache->used_size;
     int space_needed = size - free_space;
-    while (space_needed > 0) {
-        cache_entry_t *lru_ent = TAILQ_LAST(&cache->entries, entries_head);
-        space_needed -= lru_ent->size;
-        TAILQ_REMOVE(&cache->entries, lru_ent, entry);
-        map_delete(cache->map, lru_ent->key);
-        cache->used_size -= lru_ent->size;
-        TAILQ_INSERT_HEAD(&evict_ents, lru_ent, entry);
+    cache_entry_t *lru_ent = TAILQ_LAST(&cache->entries, entries_head);
+    while ((space_needed > 0) && (lru_ent)) {
+        cache_entry_t *prev_ent = TAILQ_PREV(lru_ent, entries_head, entry);
+        if (lru_ent->evictable) {
+            space_needed -= lru_ent->size;
+            TAILQ_REMOVE(&cache->entries, lru_ent, entry);
+            map_delete(cache->map, lru_ent->key);
+            cache->used_size -= lru_ent->size;
+            TAILQ_INSERT_HEAD(&evict_ents, lru_ent, entry);
+        }
+        lru_ent = prev_ent;
+    }
+
+    // If we cannot remove enough to get below capacity,
+    // return an error.
+    // TODO - is this possible?  Only if we allow the
+    // cache->total_size to be decreased on the fly.
+    if (space_needed > 0) {
+        free(ent);
+        return ENOMEM;
     }
 
     TAILQ_INSERT_TAIL(&cache->entries, ent, entry);

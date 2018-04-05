@@ -37,19 +37,28 @@ int map_test() {
 
 int cache_test() {
     int ret = 0;
-    cache_t *cache = cache_init(1024);
+    bool evictable = true;
+    int num_loops = 20;
+
+    // Make the cache 1 entry less than we need so that we
+    // force an evicition during insertion.
+    cache_t *cache = cache_init(16 * (num_loops - 1));
 
     uint64_t  i=0;
 
-    for (i = 0; i < 20; i++) {
+    for (i = 0; i < num_loops; i++) {
         char *key = (char *)malloc(20);
         sprintf(key, "%016llx", i);
         char *val = (char *)malloc(20);
         sprintf(val, "%016lld", i+1000);
 
-        ret = cache_insert(cache, key, (void *)val, strlen(val), NULL);
+        evictable = true;
+        if (i % 2) {
+            evictable = false;
+        }
+        ret = cache_insert(cache, key, (void *)val, strlen(val), NULL, evictable);
         if (ret != 0) {
-            printf("Failed to insert into cache - err : %d\n", ret);
+            printf("Failed to insert into cache - err : %s\n", strerror(ret));
             return -1;
         }
     }
@@ -59,7 +68,11 @@ int cache_test() {
         sprintf(key, "%016llx", i);
         char *val;
         int ret = (uint64_t)cache_get(cache, key, (void **)&val);
-        printf("Get %s %s\n", key, val);
+        if (!ret) {
+            printf("Get %s %s ret: %d\n", key, val, ret);
+        } else {
+            printf("Get %s %s ret: %d - key 12 should have been evicted\n", key, val, ret);
+        }
         cache_evict(cache, key);
     }
 
