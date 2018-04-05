@@ -28,8 +28,11 @@ typedef struct rpc_handle_t jsonrpc_handle_t;
 #define MAX_USER_NAME_LENGTH  128
 
 // Mount options:
-#define OPT_READ_ONLY      0x01
-#define OPT_DIRECT_IO_READ 0x02
+#define OPT_READ_ONLY       0x01
+#define OPT_DIRECT_IO_READ  0x02
+#define OPT_READ_NO_CACHE   0x04
+#define OPT_READ_SEG_CACHE  0x08
+#define OPT_READ_FILE_CACHE 0x10
 
 typedef struct {
     jsonrpc_handle_t* rpc_handle;

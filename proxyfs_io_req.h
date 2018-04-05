@@ -4,6 +4,8 @@
 #include <proxyfs.h>
 #include <inttypes.h>
 
+#include "proxyfs_io_req.h"
+
 #include "cswiftclient/cswift.h"
 #include "cswiftclient/sock_pool.h"
 extern char *swift_server;
@@ -13,6 +15,13 @@ extern csw_sock_pool_t *global_swift_pool;
 
 extern int direct_io;
 #define MAX_READ_RETRY 10 // Max retry if we fail to get the data for the read plan from swift.
+
+typedef enum read_io_type_e {
+    NO_CACHE = 0,
+    SEG_CACHE = 1,
+    FILE_CACHE = 2
+} read_io_type_t;
+extern read_io_type_t read_io_type;
 
 typedef enum {
     REQ_WRITE    = 1001,
@@ -44,10 +53,11 @@ typedef struct read_obj_s {
 } read_obj_t;
 
 typedef struct read_io_plan_s {
-    read_obj_t  *objs;
-    int         objs_count;
-    char        *data;
-    int         data_size;
+    proxyfs_io_request_t *req;
+    read_obj_t           *objs;
+    int                  objs_count;
+    char                 *data;
+    int                  data_size;
 } read_io_plan_t;
 
 typedef struct read_plan_range_s {
@@ -67,5 +77,9 @@ typedef struct read_plan_s {
 int proxyfs_read_req(proxyfs_io_request_t *req, int sock_fd);
 int proxyfs_read_plan_req(proxyfs_io_request_t *req, int sock_fd);
 int proxyfs_write_req(proxyfs_io_request_t *req, int sock_fd);
+
+int read_io_no_cache(proxyfs_io_request_t *req, int sock_fd);
+int read_io_seg_cache(proxyfs_io_request_t *req, int sock_fd);
+int read_io_file_cache(proxyfs_io_request_t *req, int sock_fd);
 
 #endif // __PROXYFS_IO_REQ_H__

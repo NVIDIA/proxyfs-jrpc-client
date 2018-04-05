@@ -1051,6 +1051,7 @@ int proxyfs_mkdir_path(mount_handle_t* in_mount_handle,
 }
 
 int direct_io = 1;
+read_io_type_t read_io_type = NO_CACHE;
 
 int proxyfs_mount(char*            in_volume_name,
                   uint64_t         in_mount_options,
@@ -1068,7 +1069,15 @@ int proxyfs_mount(char*            in_volume_name,
     }
 
     direct_io = in_mount_options & OPT_DIRECT_IO_READ ? 1 : 0;
-    in_mount_options &= ~OPT_DIRECT_IO_READ;
+    if (in_mount_options & OPT_READ_FILE_CACHE) {
+        read_io_type = FILE_CACHE;
+    } else if (in_mount_options & OPT_READ_SEG_CACHE) {
+        read_io_type = SEG_CACHE;
+    } else {
+        read_io_type = NO_CACHE;
+    }
+
+    in_mount_options &= ~(OPT_DIRECT_IO_READ | OPT_READ_NO_CACHE | OPT_READ_SEG_CACHE | OPT_READ_FILE_CACHE);
 
     // Alloc memory for handle to return and fill it in
     //
