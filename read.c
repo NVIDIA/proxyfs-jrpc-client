@@ -125,7 +125,7 @@ retry:
                         goto retry;
                     }
 
-                    cache_insert(pvt->cache, key, data, data_size, NULL);
+                    cache_insert(pvt->cache, key, data, data_size, NULL, true);
                 }
 
                 fill_cnt = pvt->cache_line_size - (off % pvt->cache_line_size);
@@ -178,7 +178,7 @@ static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
 
         size = stp->size;
         free(stp);
-        cache_insert(pvt->cache, key, (void *)(intptr_t)size, sizeof(int), NULL);
+        cache_insert(pvt->cache, key, (void *)(intptr_t)size, sizeof(int), NULL, true);
     }
 
     if (end > size) {
@@ -216,7 +216,7 @@ static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
                 return err;
             }
 
-            cache_insert(pvt->cache, key, data, pvt->cache_line_size, NULL);
+            cache_insert(pvt->cache, key, data, pvt->cache_line_size, NULL, true);
         }
 
 
