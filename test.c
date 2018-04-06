@@ -1767,6 +1767,7 @@ void test_readdir(file_id_t id, int prevDirLoc, int exp_status) {
     handle_api_return_with_dirent(funcToTest, err, fi->inode, dir_ent, prevDirLoc, exp_status);
 
     if (dir_ent != NULL) {
+        free(dir_ent);
         dir_ent = NULL;
     }
 }
@@ -1810,8 +1811,10 @@ void test_readdir_all(file_id_t id, int exp_status, int files_expected, char *ch
             }
 
             prevDirLoc = dir_ent->d_off;
+            free(dir_ent);
             dir_ent = NULL;
         }
+
     } while (err != ENOENT);
 
     if (files_expected != files_found) {
@@ -1848,6 +1851,7 @@ void test_readdir_plus(file_id_t id, int prevDirLoc, int exp_status) {
     handle_api_return_with_dirent_stat(funcToTest, err, fi->inode, dir_ent, stat, prevDirLoc - 1, exp_status);
 
     if (dir_ent != NULL) {
+        free(dir_ent);
         dir_ent = NULL;
     }
     if (stat != NULL) {
@@ -1896,6 +1900,7 @@ void test_readdir_plus_all(file_id_t id, int exp_status, int files_expected, cha
             }
 
             prevDirLoc = dir_ent->d_off;
+            free(dir_ent);
             dir_ent = NULL;
         }
         if (stat != NULL) {
