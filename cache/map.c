@@ -189,5 +189,6 @@ void map_free(map_t *map) {
         }
     }
 
+    free(map->buckets);
     free(map);
 }

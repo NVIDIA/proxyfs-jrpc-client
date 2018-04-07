@@ -105,7 +105,7 @@ int cache_insert(cache_t *cache, char *key, void *val, int size, void (*evict_cb
         if (ent->evict_cb) {
             ent->evict_cb(ent->value);
         }
-
+        free(ent->key);
         free(ent);
     }
 
@@ -153,7 +153,24 @@ int cache_evict(cache_t *cache, char *key) {
         ent->evict_cb(ent->value);
     }
 
+    free(ent->key);
     free(ent);
+    return 0;
+}
+
+int cache_set_evictable(cache_t *cache, char *key) {
+    pthread_mutex_lock(&cache->cache_lock);
+
+    cache_entry_t *ent = map_get(cache->map, key);
+
+    if (ent == NULL) {
+        pthread_mutex_unlock(&cache->cache_lock);
+        return ENOENT;
+    }
+
+    ent->evictable = true;
+    pthread_mutex_unlock(&cache->cache_lock);
+
     return 0;
 }
 

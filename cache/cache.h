@@ -12,4 +12,9 @@ int cache_insert(cache_t *cache, char *key, void *val, int size, void (*evict_cb
 int cache_get(cache_t *cache, char *key, void **val);
 int cache_evict(cache_t *cache, char *key);
 
+// Allow the cache entry to be evicted.  For example, if the entry is a write
+// which has not been flushed yet it will be inserted as evictable == false.
+// Once the entry has been flushed it can be set evictable == true.
+int cache_set_evictable(cache_t *cache, char *key);
+
 #endif // __CACHE_H__
