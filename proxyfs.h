@@ -12,7 +12,6 @@
 #include <sys/statvfs.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <sys/queue.h>
 
 // Set JSON RPC particulars... as a 3-tuple or via <IPAddr>:<TCPPort>/<FastTCPPort> string
 void rpc_config_set(const char *set_rpc_server, int set_rpc_port, int set_rpc_fast_port);
@@ -109,9 +108,6 @@ typedef struct proxyfs_io_request_s {
     void            (*done_cb)(struct proxyfs_io_request_s *req);
     void            *done_cb_arg;
     int             done_cb_fd;
-
-    // TBD: Hide the list entry as opaque value (void *) since this struct is an external interface.
-    TAILQ_ENTRY(proxyfs_io_request_s) request_queue_entry;
 } proxyfs_io_request_t;
 
 // API to send async read/write
