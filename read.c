@@ -68,6 +68,20 @@ static int read_no_cache(proxyfs_io_request_t *req, int sock_fd) {
     return 0;
 }
 
+typedef struct seg_cache_key_s {
+    uint64_t    seg_num;
+    char        path[512];      // TODO - is this correct????
+} seg_cache_key_t;
+
+void build_seg_cache_key(uint64_t seg_num, char *path, int path_sz,
+                         seg_cache_key_t **sk, p_key_t **k) {
+    *sk = malloc(sizeof(seg_cache_key_t));
+    memset(*sk, 0, sizeof(seg_cache_key_t));
+    (*sk)->seg_num = seg_num;
+    strncpy((*sk)->path, path, path_sz);    // TODO - strncpy - how long and \0???
+    *k = make_key(*sk, sizeof(seg_cache_key_t));
+}
+
 static int read_seg_cache(proxyfs_io_request_t *req, int sock_fd) {
     read_plan_t *rp;
 
@@ -90,9 +104,8 @@ retry:
     }
 
     int i;
-
-    char key[512];
-
+    seg_cache_key_t *sk = NULL;
+    p_key_t *k = NULL;
     for (i = 0; i < io_plan->objs_count; i++) {
         read_obj_t *obj = &io_plan->objs[i];
 
@@ -106,10 +119,11 @@ retry:
 
             for (off = range->start; off < range->end; off += fill_cnt, buf_off += fill_cnt)  {
                 uint64_t seg = off / pvt->cache_line_size;
-                sprintf(key, "%s_%016llx", obj->obj_path, seg);
+
+                build_seg_cache_key(seg, obj->obj_path, strlen(obj->obj_path), &sk, &k);
 
                 char *data = NULL;
-                int err = cache_get(pvt->cache, key, (void **)&data);
+                int err = cache_get(pvt->cache, k, (void **)&data);
                 if (err != 0) {
                     if (err != ENOENT) {
                         free_read_io_plan(io_plan);
@@ -125,7 +139,7 @@ retry:
                         goto retry;
                     }
 
-                    cache_insert(pvt->cache, key, data, data_size, NULL, true);
+                    cache_insert(pvt->cache, k, data, data_size, NULL, true);
                 }
 
                 fill_cnt = pvt->cache_line_size - (off % pvt->cache_line_size);
@@ -143,7 +157,25 @@ retry:
     return 0;
 }
 
+typedef struct file_cache_key_s {
+    uint64_t    inode_number;
+    uint64_t    seg_num;
+    bool        is_size;       // True means cacheing file size
+} file_cache_key_t;
+
+void build_file_cache_key(uint64_t inum, uint64_t seg_num, bool is_size,
+                        file_cache_key_t **fk, p_key_t **k) {
+    *fk = malloc(sizeof(file_cache_key_t));
+    memset(*fk, 0, sizeof(file_cache_key_t));
+    (*fk)->inode_number = inum;
+    (*fk)->seg_num = seg_num;
+    (*fk)->is_size = is_size;
+    *k = make_key(*fk, sizeof(file_cache_key_t));
+}
+
 static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
+    p_key_t *k = NULL;
+    file_cache_key_t *fk = NULL;
 
     read_plan_t *rp;
 
@@ -152,17 +184,16 @@ static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
 
     int err = 0;
 
-    char key[50];
-
-
     uint64_t off = req->offset;
     uint64_t end = req->offset + req->length;
     uint64_t fill_cnt = 0;
     int buf_off = 0;
 
-    sprintf(key, "%016llx_size", req->inode_number);
+// TODO - where is this used????
+    // Cache file size
     int size;
-    err = cache_get(pvt->cache, key, (void **)&size);
+    build_file_cache_key(req->inode_number, 0, true, &fk, &k);
+    err = cache_get(pvt->cache, k, (void **)&size);
     if (err != 0) {
         if (err != ENOENT) {
             req->error = err;
@@ -178,7 +209,7 @@ static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
 
         size = stp->size;
         free(stp);
-        cache_insert(pvt->cache, key, (void *)(intptr_t)size, sizeof(int), NULL, true);
+        cache_insert(pvt->cache, k, (void *)(intptr_t)size, sizeof(int), NULL, true);
     }
 
     if (end > size) {
@@ -195,9 +226,12 @@ static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
         }
 
         uint64_t seg = off / pvt->cache_line_size;
-        sprintf(key, "%016llx_%016llx", req->inode_number, seg);
+
+        // Build the key for this key entry
+        build_file_cache_key(req->inode_number, seg, false, &fk, &k);
+
         char *data;
-        err = cache_get(pvt->cache, key, (void **)&data);
+        err = cache_get(pvt->cache, k, (void **)&data);
         if (err != 0) {
             if (err != ENOENT) {
                 req->error = err;
@@ -216,7 +250,7 @@ static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
                 return err;
             }
 
-            cache_insert(pvt->cache, key, data, pvt->cache_line_size, NULL, true);
+            cache_insert(pvt->cache, k, data, pvt->cache_line_size, NULL, true);
         }
 
 
