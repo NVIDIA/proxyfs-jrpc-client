@@ -8,7 +8,7 @@
 #include <stdbool.h>
 
 typedef struct cache_entry_s {
-    char *key;
+    p_key_t *key;
     void *value;
     int   size;
     bool evictable;
@@ -40,8 +40,8 @@ cache_t *cache_init(int cache_size) {
     return cache;
 }
 
-int cache_insert(cache_t *cache, char *key, void *val, int size, void (*evict_cb)(void *),
-    bool evictable) {
+int cache_insert(cache_t *cache, p_key_t *key, void *val, uint64_t size,
+    void (*evict_cb)(void *), bool evictable) {
 
     TAILQ_HEAD(entries_head, cache_entry_s) evict_ents;
     TAILQ_INIT(&evict_ents);
@@ -61,7 +61,9 @@ int cache_insert(cache_t *cache, char *key, void *val, int size, void (*evict_cb
 
     bzero(ent, sizeof(cache_entry_t));
 
-    ent->key = key;
+    // Duplicate the key
+    ent->key = make_key(key->ptr, key->ptr_size);
+
     ent->value = val;
     ent->size = size;
     ent->evict_cb = evict_cb;
@@ -105,6 +107,7 @@ int cache_insert(cache_t *cache, char *key, void *val, int size, void (*evict_cb
         if (ent->evict_cb) {
             ent->evict_cb(ent->value);
         }
+        free(ent->key->ptr);
         free(ent->key);
         free(ent);
     }
@@ -113,7 +116,7 @@ int cache_insert(cache_t *cache, char *key, void *val, int size, void (*evict_cb
 }
 
 
-int cache_get(cache_t *cache, char *key, void **val) {
+int cache_get(cache_t *cache, p_key_t *key, void **val) {
 
     pthread_mutex_lock(&cache->cache_lock);
 
@@ -134,7 +137,7 @@ int cache_get(cache_t *cache, char *key, void **val) {
     return 0;
 }
 
-int cache_evict(cache_t *cache, char *key) {
+int cache_evict(cache_t *cache, p_key_t *key) {
     pthread_mutex_lock(&cache->cache_lock);
 
     cache_entry_t *ent = map_get(cache->map, key);
@@ -153,12 +156,13 @@ int cache_evict(cache_t *cache, char *key) {
         ent->evict_cb(ent->value);
     }
 
+    free(ent->key->ptr);
     free(ent->key);
     free(ent);
     return 0;
 }
 
-int cache_set_evictable(cache_t *cache, char *key) {
+int cache_set_evictable(cache_t *cache, p_key_t *key) {
     pthread_mutex_lock(&cache->cache_lock);
 
     cache_entry_t *ent = map_get(cache->map, key);
@@ -190,6 +194,8 @@ void cache_free(cache_t *cache) {
             ent->evict_cb(ent->value);
         }
 
+        free(ent->key->ptr);
+        free(ent->key);
         free(ent);
     }
 

@@ -9,8 +9,8 @@
 #include <stdlib.h>
 
 typedef struct bucket_entry_s {
-    elm_t *key;
-    elm_t *val;
+    p_key_t *key;
+    void *val;
 
     TAILQ_ENTRY(bucket_entry_s) entry;
 } bucket_entry_t;
@@ -84,7 +84,7 @@ map_t  *map_init() {
     return map;
 }
 
-int map_put(map_t *map, elm_t *key, elm_t *val) {
+int map_put(map_t *map, p_key_t *key, void *val) {
     uint16_t crc = crc16(key->ptr, key->ptr_size);
     pthread_mutex_lock(&map->map_lock);
     int idx = crc % map->count;
@@ -101,7 +101,7 @@ int map_put(map_t *map, elm_t *key, elm_t *val) {
 
     bucket_entry_t *elm;
     TAILQ_FOREACH(elm, &bkt->entries, entry) {
-        if (bcmp(elm->key->ptr, key->ptr, elm->key->ptr_size) == 0) {
+        if (bcmp(elm->key->ptr, key->ptr, key->ptr_size) == 0) {
             pthread_mutex_unlock(&map->map_lock);
             return EEXIST;
         }
@@ -110,21 +110,9 @@ int map_put(map_t *map, elm_t *key, elm_t *val) {
     elm = (bucket_entry_t *)malloc(sizeof(bucket_entry_t));
     bzero(elm, sizeof(bucket_entry_t));
 
-    // Make a copy of the key but not the val since
-    // that may be very large.
-    elm->key = malloc(sizeof(elm_t));
-    memset(elm->key, 0, sizeof(elm_t));
-
-    elm->key->ptr = malloc(key->ptr_size);
-    memset(elm->key->ptr, 0, elm->key->ptr_size);
-    bcopy(key->ptr, elm->key->ptr, key->ptr_size);
-    elm->key->ptr_size = key->ptr_size;
-
-    elm->val = malloc(sizeof(elm_t));
-    memset(elm->val, 0, sizeof(elm_t));
-    elm->val->ptr = val->ptr;
-    elm->val->ptr_size = val->ptr_size;
-
+    // Duplicate contents of key passed
+    elm->key = make_key(key->ptr, key->ptr_size);
+    elm->val = val;
     TAILQ_INSERT_HEAD(&bkt->entries, elm, entry);
 
     pthread_mutex_unlock(&map->map_lock);
@@ -132,7 +120,7 @@ int map_put(map_t *map, elm_t *key, elm_t *val) {
     return 0;
 }
 
-elm_t *map_get(map_t *map, elm_t *key) {
+void *map_get(map_t *map, p_key_t *key) {
 
     if (map == NULL || map->buckets == NULL) {
         return NULL;
@@ -150,7 +138,7 @@ elm_t *map_get(map_t *map, elm_t *key) {
 
     bucket_entry_t *elm;
     TAILQ_FOREACH(elm, &bkt->entries, entry) {
-        if (bcmp(elm->key->ptr, key->ptr, elm->key->ptr_size) == 0) {
+        if (bcmp(elm->key->ptr, key->ptr, key->ptr_size) == 0) {
             pthread_mutex_unlock(&map->map_lock);
             return elm->val;
         }
@@ -160,7 +148,7 @@ elm_t *map_get(map_t *map, elm_t *key) {
     return NULL;
 }
 
-void map_delete(map_t *map, elm_t *key) {
+void map_delete(map_t *map, p_key_t *key) {
     uint16_t crc = crc16(key->ptr, key->ptr_size);
     pthread_mutex_lock(&map->map_lock);
     int idx = crc % map->count;
@@ -173,9 +161,8 @@ void map_delete(map_t *map, elm_t *key) {
 
     bucket_entry_t *elm;
     TAILQ_FOREACH(elm, &bkt->entries, entry) {
-        if (bcmp(elm->key->ptr, key->ptr, elm->key->ptr_size) == 0) {
+        if (bcmp(elm->key->ptr, key->ptr, key->ptr_size) == 0) {
                 TAILQ_REMOVE(&bkt->entries, elm, entry);
-                free(elm->val);
                 free(elm->key->ptr);
                 free(elm->key);
                 free(elm);
