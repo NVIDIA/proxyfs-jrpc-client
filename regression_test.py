@@ -104,23 +104,23 @@ def build_jrpcclient(options):
     return failures
 
 
-def wait_for_proxyfsd(address, port, interval=0.5, max_iterations=60):
+def wait_for_child(address, port, path="", interval=0.5, max_iterations=60):
     # We're importing requests here to allow build process to work without
     # requests.
     import requests
 
     current_iteration = 0
-    is_proxyfs_up = False
-    while not is_proxyfs_up and current_iteration < max_iterations:
+    is_child_up = False
+    while not is_child_up and current_iteration < max_iterations:
         time.sleep(interval)
         try:
-            r = requests.get('http://{}:{}'.format(address, port), timeout=3)
+            r = requests.get('http://{}:{}/{}'.format(address, port, path), timeout=3)
             if r.status_code == 200:
-                is_proxyfs_up = True
+                is_child_up = True
         except Exception:
             pass
         current_iteration += 1
-    return is_proxyfs_up
+    return is_child_up
 
 
 def test_jrpcclient():
@@ -148,6 +148,8 @@ def test_jrpcclient():
              "SwiftClient.NoAuthTCPPort={}".format(ramswift_port)],
             cwd=proxyfs_package_path("ramswift")
         )
+
+        wait_for_child(private_ip_addr, ramswift_port, "info")
 
         try:
             mkproxyfs = subprocess.check_call(
@@ -211,7 +213,7 @@ def test_jrpcclient():
         # wait_for_proxyfs(...) returns a boolean, but we'll let the rest of
         # this script manage everything, just as it has been done until now and
         # specifically manage the case where ProxyFS isn't up.
-        wait_for_proxyfsd(private_ip_addr, http_port)
+        wait_for_child(private_ip_addr, http_port)
 
         jrpcclient_tests = subprocess.Popen(
             [os.path.join(".", "test"),
