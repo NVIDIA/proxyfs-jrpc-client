@@ -87,6 +87,16 @@ typedef struct {
     proxyfs_timespec_t crtim;  /* creation time */
 } proxyfs_stat_t;
 
+// proxyfs_stat_t mask bits:
+#define PROXYFS_SETATTR_SIZE    0x00000001
+#define PROXYFS_SETATTR_MODE    0x00000002
+#define PROXYFS_SETATTR_UID     0x00000004
+#define PROXYFS_SETATTR_GID     0x00000008
+#define PROXYFS_SETATTR_ATIME   0x00000010
+#define PROXYFS_SETATTR_MTIME   0x00000020
+#define PROXYFS_SETATTR_CTIME   0x00000040
+#define PROXYFS_SETATTR_CRTIME  0x00000080
+
 // TBD: async IO related operations, need to move to the right location.
 typedef enum io_op_e {
     IO_NONE = 0,
@@ -446,6 +456,11 @@ int proxyfs_setstat(mount_handle_t* in_mount_handle,
                     uint64_t        in_stat_size,
                     uint64_t        in_stat_nlink);
 #endif
+
+int proxyfs_setattr(mount_handle_t* in_mount_handle,
+                    uint64_t        in_inode_number,
+                    proxyfs_stat_t* in_attrs,
+                    uint32_t        in_mask);
 
 // Set atime and mtime for a file. This is our version of utimens().
 //

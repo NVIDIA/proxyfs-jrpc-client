@@ -2170,6 +2170,15 @@ int proxyfs_setstat(mount_handle_t* in_mount_handle,
     return rsp_status;
 }
 
+int proxyfs_setattr(mount_handle_t* in_mount_handle,
+                    uint64_t        in_inode_number,
+                    proxyfs_stat_t* in_attrs,
+                    uint32_t        in_mask)
+{
+    // TBD should be simillar to setstat above..
+    return ENOTSUP;
+}
+
 int proxyfs_settime(mount_handle_t*      in_mount_handle,
                     uint64_t             in_inode_number,
                     proxyfs_timespec_t*  in_stat_atime,
