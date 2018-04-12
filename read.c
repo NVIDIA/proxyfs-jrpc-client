@@ -1,3 +1,4 @@
+#include <libgen.h>
 #include "proxyfs.h"
 #include "debug.h"
 #include "proxyfs_io_req.h"
@@ -70,16 +71,24 @@ static int read_no_cache(proxyfs_io_request_t *req, int sock_fd) {
 
 typedef struct seg_cache_key_s {
     uint64_t    seg_num;
-    char        path[512];      // TODO - is this correct????
+    uint64_t    object_num;
 } seg_cache_key_t;
 
-void build_seg_cache_key(uint64_t seg_num, char *path, int path_sz,
-                         seg_cache_key_t **sk, p_key_t **k) {
-    *sk = malloc(sizeof(seg_cache_key_t));
-    memset(*sk, 0, sizeof(seg_cache_key_t));
-    (*sk)->seg_num = seg_num;
-    strncpy((*sk)->path, path, path_sz);    // TODO - strncpy - how long and \0???
-    *k = make_key(*sk, sizeof(seg_cache_key_t));
+// This module is single threaded and the map code will copy the
+// key.  Therefore, avoid the malloc and allocate here.
+seg_cache_key_t seg_cache_key;
+p_key_t         p_s_key;
+
+void build_seg_cache_key(uint64_t seg_num, uint64_t object_num,
+                         p_key_t *k_p, seg_cache_key_t *sck_p) {
+    memset(sck_p, 0, sizeof(seg_cache_key_t));
+    memset(k_p, 0, sizeof(p_key_t));
+
+    k_p->ptr = sck_p;
+    k_p->ptr_size = sizeof(seg_cache_key_t);
+
+    sck_p->seg_num = seg_num;
+    sck_p->object_num = object_num;
 }
 
 static int read_seg_cache(proxyfs_io_request_t *req, int sock_fd) {
@@ -104,8 +113,6 @@ retry:
     }
 
     int i;
-    seg_cache_key_t *sk = NULL;
-    p_key_t *k = NULL;
     for (i = 0; i < io_plan->objs_count; i++) {
         read_obj_t *obj = &io_plan->objs[i];
 
@@ -120,10 +127,10 @@ retry:
             for (off = range->start; off < range->end; off += fill_cnt, buf_off += fill_cnt)  {
                 uint64_t seg = off / pvt->cache_line_size;
 
-                build_seg_cache_key(seg, obj->obj_path, strlen(obj->obj_path), &sk, &k);
+                build_seg_cache_key(seg, obj->obj_num, &p_s_key, &seg_cache_key);
 
                 char *data = NULL;
-                int err = cache_get(pvt->cache, k, (void **)&data);
+                int err = cache_get(pvt->cache, &p_s_key, (void **)&data);
                 if (err != 0) {
                     if (err != ENOENT) {
                         free_read_io_plan(io_plan);
@@ -139,7 +146,7 @@ retry:
                         goto retry;
                     }
 
-                    cache_insert(pvt->cache, k, data, data_size, NULL, true);
+                    cache_insert(pvt->cache, &p_s_key, data, data_size, NULL, true);
                 }
 
                 fill_cnt = pvt->cache_line_size - (off % pvt->cache_line_size);
@@ -163,19 +170,26 @@ typedef struct file_cache_key_s {
     bool        is_size;       // True means cacheing file size
 } file_cache_key_t;
 
+// This module is single threaded and the map code will copy the
+// key.  Therefore, avoid the malloc and allocate here.
+file_cache_key_t file_cache_key;
+p_key_t          p_f_key;
+
 void build_file_cache_key(uint64_t inum, uint64_t seg_num, bool is_size,
-                        file_cache_key_t **fk, p_key_t **k) {
-    *fk = malloc(sizeof(file_cache_key_t));
-    memset(*fk, 0, sizeof(file_cache_key_t));
-    (*fk)->inode_number = inum;
-    (*fk)->seg_num = seg_num;
-    (*fk)->is_size = is_size;
-    *k = make_key(*fk, sizeof(file_cache_key_t));
+                    p_key_t *k_p, file_cache_key_t *fck_p) {
+
+    memset(fck_p, 0, sizeof(file_cache_key_t));
+    memset(k_p, 0, sizeof(p_key_t));
+
+    k_p->ptr = fck_p;
+    k_p->ptr_size = sizeof(file_cache_key_t);
+
+    fck_p->inode_number = inum;
+    fck_p->seg_num = seg_num;
+    fck_p->is_size = is_size;
 }
 
 static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
-    p_key_t *k = NULL;
-    file_cache_key_t *fk = NULL;
 
     read_plan_t *rp;
 
@@ -189,11 +203,10 @@ static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
     uint64_t fill_cnt = 0;
     int buf_off = 0;
 
-// TODO - where is this used????
     // Cache file size
     int size;
-    build_file_cache_key(req->inode_number, 0, true, &fk, &k);
-    err = cache_get(pvt->cache, k, (void **)&size);
+    build_file_cache_key(req->inode_number, 0, true, &p_f_key, &file_cache_key);
+    err = cache_get(pvt->cache, &p_f_key, (void **)&size);
     if (err != 0) {
         if (err != ENOENT) {
             req->error = err;
@@ -209,7 +222,7 @@ static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
 
         size = stp->size;
         free(stp);
-        cache_insert(pvt->cache, k, (void *)(intptr_t)size, sizeof(int), NULL, true);
+        cache_insert(pvt->cache, &p_f_key, (void *)(intptr_t)size, sizeof(int), NULL, true);
     }
 
     if (end > size) {
@@ -228,10 +241,10 @@ static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
         uint64_t seg = off / pvt->cache_line_size;
 
         // Build the key for this key entry
-        build_file_cache_key(req->inode_number, seg, false, &fk, &k);
+        build_file_cache_key(req->inode_number, 0, false, &p_f_key, &file_cache_key);
 
         char *data;
-        err = cache_get(pvt->cache, k, (void **)&data);
+        err = cache_get(pvt->cache, &p_f_key, (void **)&data);
         if (err != 0) {
             if (err != ENOENT) {
                 req->error = err;
@@ -250,7 +263,7 @@ static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
                 return err;
             }
 
-            cache_insert(pvt->cache, k, data, pvt->cache_line_size, NULL, true);
+            cache_insert(pvt->cache, &p_f_key, data, pvt->cache_line_size, NULL, true);
         }
 
 
@@ -313,6 +326,9 @@ static void insert_range(read_obj_t *obj, int start, int count, char *buf) {
 static int read_io_plan_rec_add(read_io_plan_t *rp, char *buf, int count, int obj_start, char *obj_path) {
     // Check if the object is already present, if so, then add the entry:
     int i = 0;
+    char *obj_basename = NULL;
+    uint64_t obj_num = 0;
+
     read_obj_t *obj = rp->objs;
     for (i = 0; i < rp->objs_count && obj != NULL; i++, obj = obj->next) {
         if (strcmp(obj->obj_path, obj_path) == 0) {
@@ -323,6 +339,11 @@ static int read_io_plan_rec_add(read_io_plan_t *rp, char *buf, int count, int ob
 
     obj = (read_obj_t *)malloc(sizeof(read_obj_t));
     obj->obj_path = strdup(obj_path);
+
+    obj_basename = strdup(obj_path);
+    obj->obj_num = strtol(basename(obj_basename), NULL, 16);
+    free(obj_basename);
+
     obj->range_count = obj->fd = 0;
     obj->ranges = NULL;
     obj->next = rp->objs;

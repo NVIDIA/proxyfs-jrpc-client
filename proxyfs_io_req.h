@@ -47,6 +47,7 @@ typedef struct read_obj_s {
     range_t   *ranges;
     int        range_count;
     char      *obj_path;
+    uint64_t   obj_num;
     int        fd;
 
     struct read_obj_s *next;
