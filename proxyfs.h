@@ -104,6 +104,7 @@ typedef enum io_op_e {
     IO_READ,
     IO_WRITE,
     IO_FLUSH,
+    IO_LEASE,
 } io_op_t;
 
 typedef struct proxyfs_io_request_s {

@@ -141,6 +141,7 @@ jsonrpc_handle_t* pfs_rpc_open()
             return handle;
         }
     }
+
     return handle;
 }
 

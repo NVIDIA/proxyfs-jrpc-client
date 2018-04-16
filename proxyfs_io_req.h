@@ -26,7 +26,8 @@ extern read_io_type_t read_io_type;
 typedef enum {
     REQ_WRITE    = 1001,
     REQ_READ     = 1002,
-    REQ_READPLAN = 1003
+    REQ_READPLAN = 1003,
+    REQ_LEASE    = 1004
 } io_req_type_t;
 
 typedef struct {

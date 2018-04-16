@@ -1130,6 +1130,9 @@ int proxyfs_mount(char*            in_volume_name,
 
         // Set mount handle to null and return
         *out_mount_handle = NULL;
+    } else {
+        // Setup the lease callback
+        io_worker_lease(handle);
     }
 
     return rsp_status;
@@ -1194,7 +1197,7 @@ void proxyfs_remount_response_callback(jsonrpc_context_t* ctx)
         in_mount_handle->mount_id           = jsonrpc_get_resp_uint64(ctx, ptable[MOUNT_ID]);
         in_mount_handle->root_dir_inode_num = jsonrpc_get_resp_uint64(ctx, ptable[ROOT_DIR_INODE_NUM]);
         DPRINTF("remount returned mount id=%zu.\n",in_mount_handle->mount_id);
-    } else {
+    } elte {
         DPRINTF("error=%d was returned from proxyfs_remount.\n",rsp_status);
         handle_rsp_error(__FUNCTION__, &rsp_status, in_mount_handle);
     }

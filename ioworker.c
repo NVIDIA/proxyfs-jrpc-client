@@ -48,6 +48,8 @@ typedef struct io_worker_config_s {
 io_worker_config_t *worker_config = NULL;
 
 void *io_worker(void *arg);
+static int setup_lease_callback(proxyfs_io_request_t *, int);
+static void stop_lease_callback();
 
 // Lock for max concurrent workers tracking
 pthread_mutex_t concurrent_worker_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -235,6 +237,8 @@ void io_workers_stop()
     pthread_cond_broadcast(&worker_config->request_queue_cv);
     pthread_mutex_unlock(&worker_config->request_queue_lock);
 
+    stop_lease_callback();
+
     int i;
     for (i = 0; i < worker_config->worker_count; i++) {
         int ret = pthread_join(worker_config->worker_pool[i].thread_id, NULL);
@@ -307,6 +311,8 @@ void *io_worker(void *arg)
                  break;
         case IO_FLUSH: req->error = proxyfs_flush(req->mount_handle, req->inode_number);
                  break;
+        case IO_LEASE: req->error = setup_lease_callback(req, sock_fd);
+                 break;
         default: req->error = EINVAL;
         }
 
@@ -335,5 +341,73 @@ int schedule_io_work(proxyfs_io_request_t *req)
     pthread_cond_signal(&worker_config->request_queue_cv);
     pthread_mutex_unlock(&worker_config->request_queue_lock);
 
+    return 0;
+}
+
+// Set up one of the IO worker threads to handle the lease callback.
+// This is done by dummying up a work request of type IO_LEASE.
+void io_worker_lease(mount_handle_t* handle) {
+    if (direct_io) {
+        proxyfs_io_request_t *req = malloc(sizeof(proxyfs_io_request_t));
+        memset(req, 0, sizeof(proxyfs_io_request_t));
+        req->mount_handle = handle;
+        req->op = IO_LEASE;
+        schedule_io_work(req);
+    }
+}
+
+static void stop_lease_callback() {
+    // TODO - send RELEASE LEASE message to proxyfsd so get callback...
+    if (direct_io) {
+    }
+}
+
+static int setup_lease_callback(proxyfs_io_request_t *req, int sock_fd) {
+    int err = 0;
+    io_req_hdr_t req_hdr = {
+        .op_type      = REQ_LEASE,
+        .mount_id     = req->mount_handle->mount_id,
+    };
+
+    io_resp_hdr_t resp_hdr;
+
+    err = write_to_socket(sock_fd, &req_hdr, sizeof(req_hdr));
+    if (err != 0) {
+        return err;
+    }
+
+    io_workers_state_t state;
+    for(;;) {
+        pthread_mutex_lock(&worker_config->request_queue_lock);
+        state = worker_config->state;
+        pthread_mutex_unlock(&worker_config->request_queue_lock);
+
+        // TODO - wait for all leases to drain before breaking????
+        if (state != RUNNING) {
+            break;
+        }
+
+        // Receive response header - when this read responds it means we
+        // have a callback from ProxyFSD to release a lease on a file.
+        //
+        // NOTE: This blocks for long periods!
+        err = read_from_socket(sock_fd, &resp_hdr, sizeof(resp_hdr));
+        if (err != 0) {
+            return err;
+        }
+
+    // TODO - Fill in details of looking at inode number, flushing cache if
+    // needed and then deleting cache before sending back an ack!!!
+
+    // TODO - graceful shutdown - should this code return if no more leases
+    // && (state != RUNNING)?  Should we release all leases?
+    // Balaji said to do poll of sock_fd() and stop_fd()???
+    // io_workers_stop() release lease and have lease thread return if STOPPED and
+    // no more leases????
+
+        if (resp_hdr.error != 0) {
+            return resp_hdr.error;
+        }
+    }
     return 0;
 }
