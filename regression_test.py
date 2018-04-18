@@ -175,6 +175,8 @@ def test_jrpcclient():
         proxyfsd = subprocess.Popen(
             [proxyfs_binary_path("proxyfsd"),
              "saioproxyfsd0.conf",
+             "Volume:CommonVolume.ReplayLogFileName={}/{}".format(our_tempdir,
+                                                                  "proxyfsd_CommonVolume.rlog"),
              "Logging.LogFilePath={}/{}".format(our_tempdir,
                                                 "proxyfsd_jrpcclient.log"),
              "Peer:Peer0.PrivateIPAddr={}".format(private_ip_addr),
