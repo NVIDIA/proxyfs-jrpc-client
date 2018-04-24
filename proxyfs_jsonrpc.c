@@ -29,39 +29,51 @@ void rpc_config_set(const char *set_rpc_server, int set_rpc_port, int set_rpc_fa
     rpc_fast_port = set_rpc_fast_port;
 }
 
+// Parse a JSON config string that looks like: "<IPAddr>:<TCPPort>/<FastTCPPort>"
+// and use it to set the paramaters.
+//
 void rpc_config_parse(const char *rpc_config_string)
 {
-    int  colon_pos;
-    long length = 0;
-    char rpc_fast_port_string[16];
-    char rpc_port_string[16];
-    int  slash_pos;
+    char *rpc_server_name;
+    char *cp;
+    char *port_cp;
+    int  rpc_port;
+    int  rpc_fast_port;
 
-    length = strlen(rpc_config_string);
+    if (strlen(rpc_config_string) > 256) {
+        DPANIC("RPC config string is too long: more than 256 bytes");
+    }
 
-    slash_pos = length - 1;
-    while ((0 <= slash_pos) && ('/' != rpc_config_string[slash_pos])) slash_pos--;
-    if (0 > slash_pos) DPANIC("Failed to find delimiting '/' between TCPPort & FastTCPPort in rpc_config_string");
-    if (1 == (length - slash_pos)) DPANIC("FastTCPPort following '/' zero-length");
-    if (16 < (length - slash_pos)) DPANIC("FastTCPPort field too long (%d - should be no more than 15)", length - slash_pos - 1);
+    rpc_server_name = strdup(rpc_config_string);
+    cp = strchr(rpc_server_name, ':');
+    if (cp == NULL) {
+        DPANIC("Failed to find delimiting ':' between IPAddr & TCPPort in rpc_config_string");
+    }
+    *cp = '\0';
 
-    colon_pos = slash_pos - 1;
-    while ((0 <= colon_pos) && (':' != rpc_config_string[colon_pos])) colon_pos--;
-    if (0 > colon_pos) DPANIC("Failed to find delimiting ':' between IPAddr & TCPPort in rpc_config_string");
-    if (1 == (slash_pos - colon_pos)) DPANIC("TCPPort following ':' zero-length");
-    if (16 < (slash_pos - colon_pos)) DPANIC("TCPPort field too long (%d - should be no more than 15)", slash_pos - colon_pos - 1);
+    port_cp = cp + 1;
+    rpc_port = strtol(port_cp, &cp, 0);
+    if (*cp != '/') {
+        DPANIC("No delimiting '/' between TCPPort & FastTCPPort in rpc_config_string or TCPPort number is bad");
+    }
+    if (rpc_port < 1 || rpc_port > 65535) {
+        DPANIC("TCPPort number in rpc_config_string is invalid");
+    }
 
-    if (0 == colon_pos) DPANIC("IPAddr preceding ':' zero-length");
-    if (128 < colon_pos) DPANIC("IPAddr field too long (%d - should be no more than 127)", colon_pos - 1);
+    port_cp = cp + 1;
+    rpc_fast_port = strtol(port_cp, &cp, 0);
+    if (*cp != '\0') {
+        DPANIC("FastTCPPort following '/' not a number or zero-length in rpc_config_string");
+    }
+    if (rpc_fast_port < 1 || rpc_fast_port > 65535) {
+        DPANIC("FastTCPPort number in rpc_config_string is invalid");
+    }
 
-    strncpy(&rpc_server[0], &rpc_config_string[0], colon_pos);
-    rpc_server[colon_pos] = '\0';
-    strncpy(&rpc_port_string[0], &rpc_config_string[colon_pos + 1], slash_pos - colon_pos - 1);
-    rpc_port_string[slash_pos - colon_pos - 1] = '\0';
-    rpc_port = atoi(rpc_port_string);
-    strncpy(&rpc_fast_port_string[0], &rpc_config_string[slash_pos + 1], length - slash_pos - 1);
-    rpc_fast_port_string[length - slash_pos - 1] = '\0';
-    rpc_fast_port = atoi(rpc_fast_port_string);
+    // assign the values
+    rpc_config_set(rpc_config_string, rpc_port, rpc_fast_port);
+
+    // this frees the strdup() string even though the string is "shorter"
+    free(rpc_server_name);
 }
 
 // Internal struct for our RPC handle
