@@ -344,6 +344,12 @@ int schedule_io_work(proxyfs_io_request_t *req)
     return 0;
 }
 
+// Nothing to do in the callback.  This process will
+// panic when the lease is returned because the ProxyFS
+// process closed any sockets when it exited.
+void lease_returned(proxyfs_io_request_t *req) {
+}
+
 // Set up one of the IO worker threads to handle the lease callback.
 // This is done by dummying up a work request of type IO_LEASE.
 void io_worker_lease(mount_handle_t* handle) {
@@ -352,6 +358,7 @@ void io_worker_lease(mount_handle_t* handle) {
         memset(req, 0, sizeof(proxyfs_io_request_t));
         req->mount_handle = handle;
         req->op = IO_LEASE;
+        req->done_cb = lease_returned;
         schedule_io_work(req);
     }
 }
