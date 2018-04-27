@@ -11,7 +11,7 @@
 
 #include "proxyfs_io_req.h"
 
-static int read_no_cache(proxyfs_io_request_t *req, int sock_fd);
+static int read_no_cache(proxyfs_io_request_t *req, int sock_fd, bool cache_read_plan);
 static int read_seg_cache(proxyfs_io_request_t *req, int sock_fd);
 static int read_file_cache(proxyfs_io_request_t *req, int sock_fd);
 
@@ -33,7 +33,7 @@ int proxyfs_read_plan_req(proxyfs_io_request_t *req, int sock_fd) {
     }
 
     switch (read_io_type) {
-    case NO_CACHE: return read_no_cache(req, sock_fd);
+    case NO_CACHE: return read_no_cache(req, sock_fd, false);
     case SEG_CACHE: return read_seg_cache(req, sock_fd);
     case FILE_CACHE: return read_file_cache(req, sock_fd);
     }
@@ -41,16 +41,65 @@ int proxyfs_read_plan_req(proxyfs_io_request_t *req, int sock_fd) {
     return EINVAL; // we don't know the type of read function to use.
 }
 
-static int read_no_cache(proxyfs_io_request_t *req, int sock_fd) {
-    read_plan_t *rp;
+typedef struct read_plan_cache_key_s {
+    uint64_t    inode_number;
+} read_plan_cache_key_t;
+
+// This module is single threaded and the map code will copy the
+// key.  Therefore, avoid the malloc and allocate here.
+read_plan_cache_key_t read_plan_cache_key;
+p_key_t         p_r_key;
+
+void build_read_plan_cache_key(uint64_t inode_number, p_key_t *k_p, read_plan_cache_key_t *sck_p) {
+    memset(sck_p, 0, sizeof(read_plan_cache_key_t));
+    memset(k_p, 0, sizeof(p_key_t));
+
+    k_p->ptr = sck_p;
+    k_p->ptr_size = sizeof(read_plan_cache_key_t);
+
+    sck_p->inode_number = inode_number;
+}
+
+static int read_no_cache(proxyfs_io_request_t *req, int sock_fd, bool cache_read_plan) {
+    read_plan_t *rp = NULL;
+    int ret = 0;
+    int err = 0;
 
     mount_handle_t *mh = req->mount_handle;
     mount_pvt_t *pvt = (mount_pvt_t *)mh->pvt_data;
 
-    int ret = get_read_plan(mh, req->inode_number, req->offset, req->length, sock_fd, &rp);
-    if (ret != 0) {
-        req->error = ret;
-        return 0;
+    // File based cacheing caches the read plan
+    if (cache_read_plan) {
+
+        // Get read plan from cache if present.  If it is not present then
+        // get it and then cache it.
+
+        // TODO - What if error in failed based case?  Do we retry correctly?
+        build_read_plan_cache_key(req->inode_number, &p_r_key, &read_plan_cache_key);
+        err = cache_get(pvt->cache, &p_r_key, (void **)&rp);
+        if (err != 0) {
+            if (err != ENOENT) {
+                req->error = err;
+                return 0;
+            }
+
+            ret = get_read_plan(mh, req->inode_number, req->offset, req->length, sock_fd, &rp);
+            if (ret != 0) {
+                req->error = ret;
+                return 0;
+            }
+
+            // TODO - verify that rp or read plan will be freed when callback from
+            // lease says to release this read plan.  At that point in time we should
+            // also make sure to free the memory.
+            cache_insert(pvt->cache, &p_r_key, rp, sizeof(rp), NULL, true);
+        }
+    } else {
+        ret = get_read_plan(mh, req->inode_number, req->offset, req->length, sock_fd, &rp);
+        if (ret != 0) {
+            req->error = ret;
+            return 0;
+        }
     }
 
     read_io_plan_t *io_plan = build_read_io_plan(rp, req);
@@ -256,7 +305,7 @@ static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
             cache_req.length = pvt->cache_line_size;
             cache_req.data = data = (char *)malloc(pvt->cache_line_size);
 
-            err = read_no_cache(&cache_req, sock_fd);
+            err = read_no_cache(&cache_req, sock_fd, true);
             if (err != 0 || cache_req.error != 0) {
                 req->error = cache_req.error;
                 free(cache_req.data);

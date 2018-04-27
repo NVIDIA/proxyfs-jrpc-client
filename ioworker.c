@@ -353,6 +353,11 @@ void lease_returned(proxyfs_io_request_t *req) {
 // Set up one of the IO worker threads to handle the lease callback.
 // This is done by dummying up a work request of type IO_LEASE.
 void io_worker_lease(mount_handle_t* handle) {
+/*
+    TODO - revisit this when we do the lease code.
+    This code was causing an EPIPE problem because we are sharing
+    sock_fd across IO workers....
+
     if (direct_io) {
         proxyfs_io_request_t *req = malloc(sizeof(proxyfs_io_request_t));
         memset(req, 0, sizeof(proxyfs_io_request_t));
@@ -361,6 +366,7 @@ void io_worker_lease(mount_handle_t* handle) {
         req->done_cb = lease_returned;
         schedule_io_work(req);
     }
+*/
 }
 
 static void stop_lease_callback() {
