@@ -103,7 +103,9 @@ static int read_no_cache(proxyfs_io_request_t *req, int sock_fd, bool cache_read
     }
 
     read_io_plan_t *io_plan = build_read_io_plan(rp, req);
-    free_read_plan(rp);
+    if (!cache_read_plan) {
+        free_read_plan(rp);
+    }
     if (io_plan == NULL) {
         req->error = EIO;
         return 0;
@@ -290,7 +292,7 @@ static int read_file_cache(proxyfs_io_request_t *req, int sock_fd) {
         uint64_t seg = off / pvt->cache_line_size;
 
         // Build the key for this key entry
-        build_file_cache_key(req->inode_number, 0, false, &p_f_key, &file_cache_key);
+        build_file_cache_key(req->inode_number, seg, false, &p_f_key, &file_cache_key);
 
         char *data;
         err = cache_get(pvt->cache, &p_f_key, (void **)&data);
