@@ -39,6 +39,7 @@ installcentos:
 	ln -f -s $(LIBINSTALL_CENTOS)/libproxyfs.so.1.0.0 $(LIBINSTALL_CENTOS)/libproxyfs.so.1
 	ln -f -s $(LIBINSTALL_CENTOS)/libproxyfs.so.1.0.0 $(LIBINSTALL_CENTOS)/libproxyfs.so
 	cp -f ./proxyfs.h $(INCLUDEDIR)/
+	$(MAKE) -w -C cache installcentos
 
 clean:
 	rm -f *.o libproxyfs.so.1.0.0 ./libproxyfs.so.1 ./libproxyfs.so test pfs_log pfs_ping pfs_rw
