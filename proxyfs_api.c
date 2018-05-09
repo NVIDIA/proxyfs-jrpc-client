@@ -1050,7 +1050,7 @@ int proxyfs_mkdir_path(mount_handle_t* in_mount_handle,
     return rsp_status;
 }
 
-int direct_io = 1;
+int direct_io = 0;
 read_io_type_t read_io_type = NO_CACHE;
 
 int proxyfs_mount(char*            in_volume_name,
