@@ -13,8 +13,15 @@
 #include <time.h>
 #include <socket.h>
 #include <fault_inj.h>
+#include "synchron.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
+
+/*
+ * A lock to insure that operations which are supposed to be single-threaded are
+single-threaded.
+ */
+mutex_t         jrpcclient_lock = MUTEX_DECL_INITIALIZER;
 
 // If set, uses "fast" rpc port for reads and writes
 bool use_fastpath_for_read  = true;
@@ -2943,4 +2950,3 @@ void proxyfs_unset_verbose()
 {
     debug_flag = 0;
 }
-
