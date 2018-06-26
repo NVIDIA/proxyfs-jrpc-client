@@ -2,6 +2,7 @@
 #define __PFS_DEBUG_H__
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <inttypes.h>
 
 // Defined in proxyfs_api.c. Go there to change the default for debug printfs.
@@ -14,7 +15,7 @@ extern int list_debug_flag;
 
 // This is a roll-your-own panic. Sigh.
 #define PANIC(fmt, ...) \
-    do { printf("PANIC [%p]: " fmt, ((void*)((uint64_t)pthread_self())), ##__VA_ARGS__); fflush(stdout); abort(); } while (0)
+    do { printf("PANIC [%p]: " fmt "\n", ((void*)((uint64_t)pthread_self())), ##__VA_ARGS__); fflush(stdout); abort(); } while (0)
 
 #define DPANIC(fmt, ...) \
     do { if (debug_flag>0) PANIC(fmt, ##__VA_ARGS__); PRINTF(fmt, ##__VA_ARGS__); } while (0)

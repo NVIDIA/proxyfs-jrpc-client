@@ -99,7 +99,7 @@ jsonrpc_handle_t* pfs_rpc_open()
     }
 
     // Open the IO socket, if it's not already open
-    if (io_sock_fd == -1) {
+    if (io_sock_fd < 0) {
         io_sock_fd = sock_open(rpc_server, rpc_fast_port);
         if (io_sock_fd < 0) {
             free(handle);
@@ -133,7 +133,10 @@ void pfs_rpc_close(jsonrpc_handle_t* handle)
         return;
     }
 
-    io_workers_stop();
+    // Samba can open multiple handles at one time.  Do not stop i/o workers
+    // until the last handle is closed.
+    //
+    // io_workers_stop();
 
     // TODO: Socket pool once created remains active.. do not remove it.
     // sock_pool_t *local_pool = global_sock_pool;
@@ -684,4 +687,3 @@ int jsonrpc_exec_request_nonblocking(jsonrpc_context_t* ctx, jsonrpc_internal_ca
     }
     return rc;
 }
-
