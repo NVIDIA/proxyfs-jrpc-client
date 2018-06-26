@@ -28,28 +28,31 @@ test: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o s
 #
 install installcentos:
 	cp -f ./proxyfs.h $(INCLUDEDIR)/.
-	if [ ! -f /etc/os-release ]; then \
+	@if [ ! -f /etc/os-release ]; then \
 		echo "ERROR: Could not determine OS environment; /etc/os-release does not exist" 1>&2; \
 		exit 2; \
 	fi
-	. /etc/os-release \
-	case "X$ID" in \
+	@. /etc/os-release; \
+	case "X$$ID" in \
 	Xcentos) LIBDIR=$(LIBINSTALL_CENTOS); \
 		;; \
 	Xubuntu) LIBDIR=$(LIBINSTALL); \
 		;; \
-	X)
+	X) \
 		echo "ERROR: /etc/os-release does not specify a value for 'ID'" 1>&2; \
 		exit 2; \
 		;; \
-	*)
+	*) \
 		echo "ERROR: /etc/os-release specified an unknown 'ID' '$ID'" 1>&2; \
 		exit 2; \
 		;; \
-	esac \
-	cp -f libproxyfs.so.1.0.0 $(LIBDIR)/libproxyfs.so.1.0.0; \
-	ln -f -s libproxyfs.so.1.0.0 $(LIBDIR)/libproxyfs.so.1; \
-	ln -f -s libproxyfs.so.1.0.0 $(LIBDIR)/libproxyfs.so
+	esac; \
+	echo cp -f libproxyfs.so.1.0.0 $$LIBDIR/libproxyfs.so.1.0.0; \
+	cp -f libproxyfs.so.1.0.0 $$LIBDIR/libproxyfs.so.1.0.0; \
+	echo ln -f -s libproxyfs.so.1.0.0 $$LIBDIR/libproxyfs.so.1; \
+	ln -f -s libproxyfs.so.1.0.0 $$LIBDIR/libproxyfs.so.1; \
+	echo ln -f -s libproxyfs.so.1.0.0 $$LIBDIR/libproxyfs.so; \
+	ln -f -s libproxyfs.so.1.0.0 $$LIBDIR/libproxyfs.so
 
 clean:
 	rm -f *.o libproxyfs.so.1.0.0 libproxyfs.so.1 libproxyfs.so test pfs_log pfs_ping pfs_rw
