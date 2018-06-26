@@ -2943,4 +2943,3 @@ void proxyfs_unset_verbose()
 {
     debug_flag = 0;
 }
-
