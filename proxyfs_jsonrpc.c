@@ -148,22 +148,6 @@ void pfs_rpc_close(jsonrpc_handle_t* handle)
     free(handle);
 }
 
-// Close and reopen proxyfs RPC context, to clear errors
-void jsonrpc_rpc_bounce(jsonrpc_handle_t** handle)
-{
-    // TODO: NOT using any lock to close...
-    sock_pool_t *local_pool = global_sock_pool;
-    global_sock_pool = NULL;
-
-    sock_pool_destroy(local_pool, TRUE);
-
-    global_sock_pool = sock_pool_create(rpc_server, rpc_port, GLOBAL_SOCK_POOL_COUNT);
-    if (global_sock_pool == NULL) {
-        // There was an error opening the socket.
-        DPRINTF("Error recreating socket pool.\n");
-    }
-}
-
 void jsonrpc_free_read_buf(jsonrpc_context_t* ctx)
 {
     // Free the buffer; the data is all in the json response now.
@@ -322,12 +306,6 @@ int rpc_send_request(jsonrpc_context_t* ctx)
     DPRINTF("Returned %d from rpc_schedule_resp_work_locked for ctx=%p\n", rc, ctx);
 
 done:
-    if ((rc == EPIPE) || (rc == ENODEV) || (rc == EBADF)) {
-        // The socket got disconnected.
-        // Close and reopen the socket to clear the error
-        jsonrpc_rpc_bounce(&ctx->rpc_handle);
-    }
-
     //AddProfilerEvent(profiler, AFTER_RPC_SEND);
 
     return rc;
@@ -571,18 +549,18 @@ void* jsonrpc_response_thread(void* not_used)
         //DPRINTF("calling sock_pool_select.\n");
         int sockfd = sock_pool_select(global_sock_pool, 5); // timeout == 5 seconds.
         //DPRINTF("sock_pool_select returned sockfd=%d.\n",sockfd);
+
         if (sockfd < 0) {
-            DPRINTF("ERROR faild to select on a socket\n");
-            response_work_thread_running = false;
-            return;
+            // This can happen if sock_pool_put_badfd() is called and closes
+            // file desctriptors which causes select() to fail and return EBADF
+            DPRINTF("ERROR: faild to select on a socket\n");
+            continue;
         }
 
         // Did we timeout on the select?
         if (sockfd == 0) {
             DPRINTF("Timeout on sock select; retrying.\n");
-            // NOTE:
-            // We seem to periodically hit this, causing 5-second delays when it occurs.
-            // This can happen if we did a sock_pool_destroy/create after the select started.
+            // NOTE: This can happen when there's no work to do.
             continue;
         }
 

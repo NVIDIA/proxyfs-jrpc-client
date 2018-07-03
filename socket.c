@@ -148,24 +148,29 @@ int sock_read(int sockfd, char** bufPtr, int* error)
 
     while (1) {
         bytesRecd = read(sockfd, buf + allBytesRecd, max_read_size - allBytesRecd);
-        if (bytesRecd < 0) {
-            if (errno == EAGAIN) {
-                continue;
-            }
+        if (bytesRecd <= 0) {
 
-            if (errno == 0) {
-                DPRINTF("ERROR reading from socket - no errno set, setting errno to EIO.\n");
-                errno = EIO;
+            if (bytesRecd < 0) {
+                // we should never see EGAIN(?)
+                if (errno == EAGAIN) {
+                    continue;
+                }
+
+                if (errno == 0) {
+                    DPRINTF("ERROR reading from socket - no errno set, setting errno to EIO.\n");
+                    *error = EIO;
+                } else {
+                    DPRINTF("ERROR %s reading from socket\n", strerror(errno));
+                    *error = errno;
+                }
             } else {
-                DPRINTF("ERROR %s reading from socket\n", strerror(errno));
+                DPRINTF("far end disconnected while reading from socket.\n");
+                *error = EPIPE;
             }
 
-            *error = errno;
-            free(*bufPtr);
-            return -1;
-        } else if (bytesRecd == 0) {
-            DPRINTF("far end disconnected while reading from socket.\n");
-            *error = EPIPE;
+            // We got the socket in sock_write() and since we are done with it,
+            // lets put it back to pool.  Mark it bad so the pool gets re-opened.
+            sock_pool_put_badfd(global_sock_pool, sockfd);
             free(*bufPtr);
             return -1;
         }
@@ -230,22 +235,35 @@ int sock_write(const char* buf) {
 
     if ( fail(WRITE_BROKEN_PIPE_FAULT) ) {
         errno = EPIPE;
-        n = 0;
-    } else {
-        int sockfd = sock_pool_get(global_sock_pool);
-        if (sockfd == -1) {
-            return ENODEV;
+        goto errout;
+    }
+
+    int         sockfd = sock_pool_get(global_sock_pool);
+    if (sockfd == -1) {
+        errno = ENODEV;
+        goto errout;
+    }
+
+    DPRINTF("Sending data on socket: %d\n", sockfd);
+    n = write(sockfd, buf, strlen(buf));
+    if (n != strlen(buf)) {
+
+        // the socket is "broken" but still needs to be returned to the pool
+        sock_pool_put_badfd(global_sock_pool, sockfd);
+
+        if (n >= 0) {
+            DPRINTF("ERROR wrote %d bytes to socket but only %d were sent", n, strlen(buf));
+            errno = 0;
         }
-
-        DPRINTF("Sending data on socket: %d\n", sockfd);
-        n = write(sockfd, buf, strlen(buf));
-    }
-    if (n <= 0) {
-        DPRINTF("ERROR %s writing to socket\n", strerror(errno));
-        rtnVal = set_err_return();
+        goto errout;
     }
 
-    // Note: The socket will be put back to free pool after getting the response in read path.
+    // The socket will be returned to free pool after getting the response in
+    // read path.
+    return 0;
 
+errout:
+    DPRINTF("ERROR %s writing to socket\n", strerror(errno));
+    rtnVal = set_err_return();
     return rtnVal;
 }
