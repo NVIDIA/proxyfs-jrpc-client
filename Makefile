@@ -24,9 +24,7 @@ libproxyfs.so.1.0.0: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_uti
 test: proxyfs_api.o proxyfs_jsonrpc.o proxyfs_req_resp.o json_utils.o base64.o socket.o pool.o ioworker.o time_utils.o fault_inj.o test.o synchron.o
 	$(CC) -o $@ $(CFLAGS) $+ $(LDFLAGS)
 
-# the installcentos target is deprecated
-#
-install installcentos:
+install:
 	cp -f ./proxyfs.h $(INCLUDEDIR)/.
 	@if [ ! -f /etc/os-release ]; then \
 		echo "ERROR: Could not determine OS environment; /etc/os-release does not exist" 1>&2; \
@@ -53,6 +51,10 @@ install installcentos:
 	ln -f -s libproxyfs.so.1.0.0 $$LIBDIR/libproxyfs.so.1; \
 	echo ln -f -s libproxyfs.so.1.0.0 $$LIBDIR/libproxyfs.so; \
 	ln -f -s libproxyfs.so.1.0.0 $$LIBDIR/libproxyfs.so
+
+# the installcentos target is deprecated
+#
+installcentos:install
 
 clean:
 	rm -f *.o libproxyfs.so.1.0.0 libproxyfs.so.1 libproxyfs.so test pfs_log pfs_ping pfs_rw
