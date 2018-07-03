@@ -2360,6 +2360,29 @@ int mount_tests()
     // Save away parts of the real mount handle into a test one
     bad_id_mount_handle.rpc_handle = mount_handle->rpc_handle;
 
+    // Mount a second file system, verify access, and unmount it; the first
+    // mount should be unaffected (and it should be fine to use the same file
+    // system twice).
+    //
+    // mount_handle is a global that gets assigned the mount handle; save it
+    // away and then restore it
+    mount_handle_t *            saved_mount_handle = mount_handle;
+
+    rc = test_mount(volName, 0, userid, groupid, 0);
+    if (rc == -1) {
+        TLOG("FAILURE, Second mount failed");
+    } else {
+
+        // Update the ROOT_DIR inode of second mount
+        update_file_info(ROOT_DIR, 0, root_inode());
+
+        proxyfs_unmount(mount_id());
+    }
+    mount_handle = saved_mount_handle;
+
+    // should still be able to use old handle
+    update_file_info(ROOT_DIR, 0, root_inode());
+
     return 0;
 }
 
