@@ -148,24 +148,29 @@ int sock_read(int sockfd, char** bufPtr, int* error)
 
     while (1) {
         bytesRecd = read(sockfd, buf + allBytesRecd, max_read_size - allBytesRecd);
-        if (bytesRecd < 0) {
-            if (errno == EAGAIN) {
-                continue;
-            }
+        if (bytesRecd <= 0) {
 
-            if (errno == 0) {
-                DPRINTF("ERROR reading from socket - no errno set, setting errno to EIO.\n");
-                errno = EIO;
+            if (bytesRecd < 0) {
+                // we should never see EGAIN(?)
+                if (errno == EAGAIN) {
+                    continue;
+                }
+
+                if (errno == 0) {
+                    DPRINTF("ERROR reading from socket - no errno set, setting errno to EIO.\n");
+                    *error = EIO;
+                } else {
+                    DPRINTF("ERROR %s reading from socket\n", strerror(errno));
+                    *error = errno;
+                }
             } else {
-                DPRINTF("ERROR %s reading from socket\n", strerror(errno));
+                DPRINTF("far end disconnected while reading from socket.\n");
+                *error = EPIPE;
             }
 
-            *error = errno;
-            free(*bufPtr);
-            return -1;
-        } else if (bytesRecd == 0) {
-            DPRINTF("far end disconnected while reading from socket.\n");
-            *error = EPIPE;
+            // We got the socket in sock_write() and since we are done with it,
+            // lets put it back to pool.  Mark it bad so the pool gets re-opened.
+            sock_pool_put_badfd(global_sock_pool, sockfd);
             free(*bufPtr);
             return -1;
         }

@@ -571,9 +571,10 @@ void* jsonrpc_response_thread(void* not_used)
         //DPRINTF("calling sock_pool_select.\n");
         int sockfd = sock_pool_select(global_sock_pool, 5); // timeout == 5 seconds.
         //DPRINTF("sock_pool_select returned sockfd=%d.\n",sockfd);
+
         if (sockfd < 0) {
             // This can happen if sock_pool_put_badfd() is called and closes
-            // file desctriptors, causing select() to fail and return EBADF
+            // file desctriptors which causes select() to fail and return EBADF
             DPRINTF("ERROR: faild to select on a socket\n");
             continue;
         }
