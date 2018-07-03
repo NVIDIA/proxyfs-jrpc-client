@@ -572,17 +572,16 @@ void* jsonrpc_response_thread(void* not_used)
         int sockfd = sock_pool_select(global_sock_pool, 5); // timeout == 5 seconds.
         //DPRINTF("sock_pool_select returned sockfd=%d.\n",sockfd);
         if (sockfd < 0) {
-            DPRINTF("ERROR faild to select on a socket\n");
-            response_work_thread_running = false;
-            return;
+            // This can happen if sock_pool_put_badfd() is called and closes
+            // file desctriptors, causing select() to fail and return EBADF
+            DPRINTF("ERROR: faild to select on a socket\n");
+            continue;
         }
 
         // Did we timeout on the select?
         if (sockfd == 0) {
             DPRINTF("Timeout on sock select; retrying.\n");
-            // NOTE:
-            // We seem to periodically hit this, causing 5-second delays when it occurs.
-            // This can happen if we did a sock_pool_destroy/create after the select started.
+            // NOTE: This can happen when there's no work to do.
             continue;
         }
 

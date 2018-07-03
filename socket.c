@@ -230,7 +230,7 @@ int sock_write(const char* buf) {
 
     if ( fail(WRITE_BROKEN_PIPE_FAULT) ) {
         errno = EPIPE;
-        n = 0;
+        n = -1;
     } else {
         int sockfd = sock_pool_get(global_sock_pool);
         if (sockfd == -1) {
@@ -240,7 +240,7 @@ int sock_write(const char* buf) {
         DPRINTF("Sending data on socket: %d\n", sockfd);
         n = write(sockfd, buf, strlen(buf));
     }
-    if (n <= 0) {
+    if (n != strlen(buf)) {
         DPRINTF("ERROR %s writing to socket\n", strerror(errno));
         rtnVal = set_err_return();
     }
