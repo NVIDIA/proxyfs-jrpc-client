@@ -148,22 +148,6 @@ void pfs_rpc_close(jsonrpc_handle_t* handle)
     free(handle);
 }
 
-// Close and reopen proxyfs RPC context, to clear errors
-void jsonrpc_rpc_bounce(jsonrpc_handle_t** handle)
-{
-    // TODO: NOT using any lock to close...
-    sock_pool_t *local_pool = global_sock_pool;
-    global_sock_pool = NULL;
-
-    sock_pool_destroy(local_pool, TRUE);
-
-    global_sock_pool = sock_pool_create(rpc_server, rpc_port, GLOBAL_SOCK_POOL_COUNT);
-    if (global_sock_pool == NULL) {
-        // There was an error opening the socket.
-        DPRINTF("Error recreating socket pool.\n");
-    }
-}
-
 void jsonrpc_free_read_buf(jsonrpc_context_t* ctx)
 {
     // Free the buffer; the data is all in the json response now.
@@ -322,12 +306,6 @@ int rpc_send_request(jsonrpc_context_t* ctx)
     DPRINTF("Returned %d from rpc_schedule_resp_work_locked for ctx=%p\n", rc, ctx);
 
 done:
-    if ((rc == EPIPE) || (rc == ENODEV) || (rc == EBADF)) {
-        // The socket got disconnected.
-        // Close and reopen the socket to clear the error
-        jsonrpc_rpc_bounce(&ctx->rpc_handle);
-    }
-
     //AddProfilerEvent(profiler, AFTER_RPC_SEND);
 
     return rc;

@@ -235,22 +235,35 @@ int sock_write(const char* buf) {
 
     if ( fail(WRITE_BROKEN_PIPE_FAULT) ) {
         errno = EPIPE;
-        n = -1;
-    } else {
-        int sockfd = sock_pool_get(global_sock_pool);
-        if (sockfd == -1) {
-            return ENODEV;
-        }
-
-        DPRINTF("Sending data on socket: %d\n", sockfd);
-        n = write(sockfd, buf, strlen(buf));
+        goto errout;
     }
+
+    int         sockfd = sock_pool_get(global_sock_pool);
+    if (sockfd == -1) {
+        errno = ENODEV;
+        goto errout;
+    }
+
+    DPRINTF("Sending data on socket: %d\n", sockfd);
+    n = write(sockfd, buf, strlen(buf));
     if (n != strlen(buf)) {
-        DPRINTF("ERROR %s writing to socket\n", strerror(errno));
-        rtnVal = set_err_return();
+
+        // the socket is "broken" but still needs to be returned to the pool
+        sock_pool_put_badfd(global_sock_pool, sockfd);
+
+        if (n >= 0) {
+            DPRINTF("ERROR wrote %d bytes to socket but only %d were sent", n, strlen(buf));
+            errno = 0;
+        }
+        goto errout;
     }
 
-    // Note: The socket will be put back to free pool after getting the response in read path.
+    // The socket will be returned to free pool after getting the response in
+    // read path.
+    return 0;
 
+errout:
+    DPRINTF("ERROR %s writing to socket\n", strerror(errno));
+    rtnVal = set_err_return();
     return rtnVal;
 }
