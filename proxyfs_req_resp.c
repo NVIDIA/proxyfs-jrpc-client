@@ -318,11 +318,6 @@ void destruct_ctx(jsonrpc_context_t* ctx)
 {
     if (ctx == NULL) return;
 
-    //DPRINTF("Locking so that we have exclusive access to ctx=%p (pre-lock).\n",ctx);
-
-    // protect have_response flag
-    pthread_mutex_lock(&ctx->cv_info.mutex);
-
     // Free json objects
     json_object_put(ctx->req.request);
     json_object_put(ctx->resp.response);
@@ -510,4 +505,3 @@ jsonrpc_context_t* jsonrpc_get_request_by_cookie(void* cookie)
 {
     return jsonrpc_find_in_list_by_cookie(cookie, &requests_in_progress, &requests_in_progress_lock, request_list_name);
 }
-
