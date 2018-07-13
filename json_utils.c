@@ -318,6 +318,31 @@ uint64_t jsonrpc_get_resp_array_uint64(jsonrpc_context_t* ctx,
     return value;
 }
 
+int64_t jsonrpc_get_resp_array_int64(jsonrpc_context_t* ctx,
+                                     char*              array_key,
+                                     int                index,
+                                     char*              key)
+{
+    // So that this API can be called for both array and non-array gets (which makes
+    // stat_resp_to_struct simpler), we do a non-array get if array_key is null.
+    if (array_key == NULL) {
+        return jsonrpc_get_resp_int64(ctx, key);
+    }
+
+    // Get the json object for the requested index
+    json_object* dir_entry = get_jrpc_resp_array_elem(ctx, array_key, index);
+
+    json_object* obj = NULL;
+    if (!json_object_object_get_ex(dir_entry, key, &obj)) {
+        DPRINTF("%s field not found in response!\n",key);
+        return -1;
+    }
+
+    int64_t value = json_object_get_int64(obj);
+//    DPRINTF("Returned %s: %d\n", key, value);
+    return value;
+}
+
 int jsonrpc_get_resp_array_int(jsonrpc_context_t* ctx,
                                char*              array_key,
                                int                index,

@@ -30,6 +30,7 @@ int64_t     jsonrpc_get_resp_int64(jsonrpc_context_t* ctx, char* key);
 bool        jsonrpc_get_resp_bool(jsonrpc_context_t* ctx, char* key);
 void        jsonrpc_get_resp_buf(jsonrpc_context_t* ctx, char* key, uint8_t* buf, size_t buf_size, size_t* bytes_written);
 uint64_t    jsonrpc_get_resp_array_uint64(jsonrpc_context_t* ctx, char* array_key, int index, char* key);
+int64_t     jsonrpc_get_resp_array_int64(jsonrpc_context_t* ctx, char* array_key, int index, char* key);
 int         jsonrpc_get_resp_array_int(jsonrpc_context_t* ctx, char* array_key, int index, char* key);
 const char* jsonrpc_get_resp_array_str(jsonrpc_context_t* ctx, char* array_key, int index, char* key);
 const char* jsonrpc_get_resp_array_str_value(jsonrpc_context_t* ctx, char* array_key, int index);

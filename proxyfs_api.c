@@ -1722,7 +1722,7 @@ struct dirent* proxyfs_get_dirents(jsonrpc_context_t* ctx, int num_entries)
 
 #ifdef _DIRENT_HAVE_D_OFF
         // Directory entry location
-        ent->d_off = (int)jsonrpc_get_resp_array_int(ctx, ptable[DIRENTS], i, ptable[NEXT_DIR_LOCATION]);
+        ent->d_off = (int)jsonrpc_get_resp_array_int64(ctx, ptable[DIRENTS], i, ptable[NEXT_DIR_LOCATION]);
 #endif
 
 #ifdef _DIRENT_HAVE_D_TYPE

@@ -8,7 +8,6 @@
 #include <netinet/tcp.h>
 #include <netdb.h>
 #include <errno.h>
-#include <json-c/json.h>
 #include <pthread.h>
 #include "fault_inj.h"
 #include "debug.h"
