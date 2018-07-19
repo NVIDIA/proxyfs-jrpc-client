@@ -18,6 +18,7 @@
 #include "debug.h"
 #include "pool.h"
 #include "proxyfs.h"
+#include "ioworker.h"
 
 typedef struct io_worker_s {
     pthread_t thread_id;
@@ -30,6 +31,11 @@ typedef enum io_workers_state_e {
     STOPPED,
 } io_workers_state_t;
 
+typedef struct io_worker_req_s {
+    proxyfs_io_request_t *req;
+    TAILQ_ENTRY(io_worker_req_s) request_queue_entry;
+} io_worker_req_t;
+
 typedef struct io_worker_config_s {
     char *server;
     int  port;
@@ -39,11 +45,10 @@ typedef struct io_worker_config_s {
 
     pthread_mutex_t request_queue_lock;
     pthread_cond_t  request_queue_cv;
-    TAILQ_HEAD(, proxyfs_io_request_t) request_queue;
+    TAILQ_HEAD(, io_worker_req_s) request_queue;
 
     io_worker_t *worker_pool;
 } io_worker_config_t;
-
 
 io_worker_config_t *worker_config = NULL;
 
@@ -279,10 +284,11 @@ void *io_worker(void *arg)
         worker->num_ops_started++;
         inc_running_worker();
 
-        proxyfs_io_request_t *req = TAILQ_FIRST(&worker_config->request_queue);
-        TAILQ_REMOVE(&worker_config->request_queue, req, request_queue_entry);
-
+        io_worker_req_t *worker_req = TAILQ_FIRST(&worker_config->request_queue);
+        TAILQ_REMOVE(&worker_config->request_queue, worker_req, request_queue_entry);
         pthread_mutex_unlock(&worker_config->request_queue_lock);
+        proxyfs_io_request_t *req = worker_req->req;
+        free(worker_req);
 
         if (sock_fd < 0) {
             sock_fd = sock_open(worker_config->server, worker_config->port);
@@ -325,8 +331,10 @@ callback:
 
 int schedule_io_work(proxyfs_io_request_t *req)
 {
+    io_worker_req_t *worker_req = (io_worker_req_t *)malloc(sizeof(io_worker_req_t));
+    worker_req->req = req;
     pthread_mutex_lock(&worker_config->request_queue_lock);
-    TAILQ_INSERT_TAIL(&worker_config->request_queue, req, request_queue_entry);
+    TAILQ_INSERT_TAIL(&worker_config->request_queue, worker_req, request_queue_entry);
     pthread_cond_signal(&worker_config->request_queue_cv);
     pthread_mutex_unlock(&worker_config->request_queue_lock);
 

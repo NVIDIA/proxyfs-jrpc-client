@@ -2360,6 +2360,29 @@ int mount_tests()
     // Save away parts of the real mount handle into a test one
     bad_id_mount_handle.rpc_handle = mount_handle->rpc_handle;
 
+    // Mount a second file system, verify access, and unmount it; the first
+    // mount should be unaffected (and it should be fine to use the same file
+    // system twice).
+    //
+    // mount_handle is a global that gets assigned the mount handle; save it
+    // away and then restore it
+    mount_handle_t *            saved_mount_handle = mount_handle;
+
+    rc = test_mount(volName, 0, userid, groupid, 0);
+    if (rc == -1) {
+        TLOG("FAILURE, Second mount failed");
+    } else {
+
+        // Update the ROOT_DIR inode of second mount
+        update_file_info(ROOT_DIR, 0, root_inode());
+
+        proxyfs_unmount(mount_id());
+    }
+    mount_handle = saved_mount_handle;
+
+    // should still be able to use old handle
+    update_file_info(ROOT_DIR, 0, root_inode());
+
     return 0;
 }
 
@@ -3252,7 +3275,6 @@ void unmount_tests()
     char* funcToTest = funcs[UNMOUNT];
     TLOG("Calling %s.\n",funcToTest);
     proxyfs_unmount(mount_id());
-
 }
 
 void statvfs_tests()
@@ -3275,6 +3297,7 @@ void print_usage() {
     printf("       -v: verbose mode; more test output.\n");
     printf("       -s: silent mode; no test output. Intended for performance testing.\n");
     printf("       -r: specify JSON RPC server info as <ipaddr>:<port>/<fast_port> to use.\n");
+    printf("       -p: print the tests that will be run\n");
     printf("       -t: run a subset of tests, intended to reproduce specific issues.\n");
     printf("           Test subsets supported are:\n");
     printf("            4kread\n");
@@ -3299,9 +3322,10 @@ int main(int argc, char *argv[])
     bool testsSuiteAborted    = false;
     bool fakeHang             = false;
     bool rpc_config_specified = false;
+    bool print_tests = false;
 
     // See if the caller passed in any flags
-    while ((c = getopt(argc, argv, "hvsr:t:")) != -1) {
+    while ((c = getopt(argc, argv, "hvspr:t:")) != -1) {
         switch (c)
         {
             case 'h':
@@ -3322,6 +3346,9 @@ int main(int argc, char *argv[])
                 // Caller specified JSON:RPC/tuple (as required)
                 rpc_config_parse(optarg);
                 rpc_config_specified = true;
+                break;
+            case 'p':
+                print_tests = true;
                 break;
             case 't':
                 // Caller wants to run a specific test
@@ -3449,10 +3476,17 @@ int main(int argc, char *argv[])
             default:
                 abort ();
         }
-        if (!rpc_config_specified) {
-            printf("-r <JSON:RPC/tuple> must be specified.\n");
-            return 1;
-        }
+    }
+
+    if (!rpc_config_specified) {
+        printf("-r <JSON:RPC/tuple> must be specified.\n");
+        return 1;
+    }
+
+    // print the tests to run; note that this must be done after
+    // after all the "-t" options have been parsed
+    if (print_tests) {
+        print_test_settings();
     }
 
     // Caller doesn't want debug prints from proxyfs code
@@ -3572,13 +3606,13 @@ int main(int argc, char *argv[])
         sleep(30);
     }
 
-    // Generate test end log on proxyfs
-    // NOTE: For now, has to be before unmount because that's where our socket handle is stored
-    test_log("JRPCCLIENT TEST END");
-
     if (isEnabled(MOUNT_TESTS)) {
         unmount_tests();
     }
+
+    // Generate test end log on proxyfs
+    // (even after the unmount the RPC connection remains open)
+    test_log("JRPCCLIENT TEST END");
 
 done:
     TLOG("Done.\n\n");

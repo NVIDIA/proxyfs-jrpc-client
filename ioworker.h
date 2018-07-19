@@ -9,4 +9,7 @@ int io_workers_start(char *server, int port, int count);
 void io_workers_stop();
 int schedule_io_work(proxyfs_io_request_t *req);
 
+int proxyfs_read_req(proxyfs_io_request_t *req, int sock_fd);
+int proxyfs_write_req(proxyfs_io_request_t *req, int sock_fd);
+
 #endif

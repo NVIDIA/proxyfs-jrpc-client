@@ -1722,7 +1722,7 @@ struct dirent* proxyfs_get_dirents(jsonrpc_context_t* ctx, int num_entries)
 
 #ifdef _DIRENT_HAVE_D_OFF
         // Directory entry location
-        ent->d_off = (int)jsonrpc_get_resp_array_int(ctx, ptable[DIRENTS], i, ptable[NEXT_DIR_LOCATION]);
+        ent->d_off = (int)jsonrpc_get_resp_array_int64(ctx, ptable[DIRENTS], i, ptable[NEXT_DIR_LOCATION]);
 #endif
 
 #ifdef _DIRENT_HAVE_D_TYPE
@@ -2168,6 +2168,15 @@ int proxyfs_setstat(mount_handle_t* in_mount_handle,
     // Clean up jsonrpc context and return
     jsonrpc_close(ctx);
     return rsp_status;
+}
+
+int proxyfs_setattr(mount_handle_t* in_mount_handle,
+                    uint64_t        in_inode_number,
+                    proxyfs_stat_t* in_attrs,
+                    uint32_t        in_mask)
+{
+    // TBD should be simillar to setstat above..
+    return ENOTSUP;
 }
 
 int proxyfs_settime(mount_handle_t*      in_mount_handle,
@@ -2934,4 +2943,3 @@ void proxyfs_unset_verbose()
 {
     debug_flag = 0;
 }
-
