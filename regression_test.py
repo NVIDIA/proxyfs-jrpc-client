@@ -152,13 +152,11 @@ def test_jrpcclient():
         wait_for_child(private_ip_addr, ramswift_port, "info")
 
         try:
-            mkproxyfs = subprocess.check_call(
+            subprocess.check_call(
                 [proxyfs_binary_path("mkproxyfs"),
                  "-N",
                  "CommonVolume",
                  "saioproxyfsd0.conf",
-                 "Volume:CommonVolume.ReplayLogFileName={}/{}".format(
-                     our_tempdir, "proxyfsd_CommonVolume.rlog"),
                  "Logging.LogFilePath={}/{}".format(our_tempdir,
                                                     "proxyfsd_jrpcclient.log"),
                  "Peer:Peer0.PrivateIPAddr={}".format(private_ip_addr),
@@ -177,9 +175,6 @@ def test_jrpcclient():
         proxyfsd = subprocess.Popen(
             [proxyfs_binary_path("proxyfsd"),
              "saioproxyfsd0.conf",
-             "FSGlobals.VolumeList=CommonVolume",
-             "Volume:CommonVolume.ReplayLogFileName={}/{}".format(
-                 our_tempdir, "proxyfsd_CommonVolume.rlog"),
              "Logging.LogFilePath={}/{}".format(our_tempdir,
                                                 "proxyfsd_jrpcclient.log"),
              "Peer:Peer0.PrivateIPAddr={}".format(private_ip_addr),
@@ -218,7 +213,8 @@ def test_jrpcclient():
         # wait_for_proxyfs(...) returns a boolean, but we'll let the rest of
         # this script manage everything, just as it has been done until now and
         # specifically manage the case where ProxyFS isn't up.
-        wait_for_child(private_ip_addr, http_port)
+
+        wait_for_child(private_ip_addr, http_port, "version")
 
         jrpcclient_tests = subprocess.Popen(
             [os.path.join(".", "test"),
