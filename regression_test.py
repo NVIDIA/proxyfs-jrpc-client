@@ -21,6 +21,7 @@ import time
 
 
 COLORS = {"bright red": '1;31', "bright green": '1;32'}
+PRINT_DEBUG_INFO = True
 
 @contextlib.contextmanager
 def return_to_wd():
@@ -174,6 +175,13 @@ def test_jrpcclient():
             ramswift.terminate()
             return e.returncode
 
+        if PRINT_DEBUG_INFO:
+            stdout = subprocess.PIPE
+            stderr = subprocess.STDOUT
+        else:
+            stdout = subprocess.dev_null
+            stderr = subprocess.dev_null
+
         proxyfsd = subprocess.Popen(
             [proxyfs_binary_path("proxyfsd"),
              "saioproxyfsd0.conf",
@@ -186,12 +194,18 @@ def test_jrpcclient():
              "JSONRPCServer.TCPPort={}".format(jsonrpc_port),
              "JSONRPCServer.FastTCPPort={}".format(jsonrpc_fastport),
              "HTTPServer.TCPPort={}".format(http_port)],
-            stdout=dev_null, stderr=dev_null,
+            stdout=stdout, stderr=stderr,
             cwd=proxyfs_package_path("proxyfsd")
         )
 
-        # Make sure proxyfsd hasn't exited before we start the tests
+        # Make sure proxyfsd hasn't exited before we start the tests.
+        # What proxyfsd.poll() does is checking if the process has already
+        # returned with a return code, but the fact that we haven't gotten a
+        # return code yet doesn't mean we won't, eventually.
         proxyfsd.poll()
+        if PRINT_DEBUG_INFO:
+            # Print the output the process has generated UP TO THIS POINT.
+            print(proxyfsd.stdout.read())
         if proxyfsd.returncode:
             color_printer("Before starting test, nonzero exit status returned "
                           "from proxyfsd daemon: "
