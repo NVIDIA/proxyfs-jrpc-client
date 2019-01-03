@@ -157,6 +157,8 @@ def test_jrpcclient():
                  "-N",
                  "CommonVolume",
                  "saioproxyfsd0.conf",
+                 "SwiftClient.RetryLimit=1",
+                 "Cluster.PrivateClusterUDPPort=18123",
                  "Logging.LogFilePath={}/{}".format(our_tempdir,
                                                     "proxyfsd_jrpcclient.log"),
                  "Peer:Peer0.PrivateIPAddr={}".format(private_ip_addr),
@@ -175,6 +177,8 @@ def test_jrpcclient():
         proxyfsd = subprocess.Popen(
             [proxyfs_binary_path("proxyfsd"),
              "saioproxyfsd0.conf",
+             "SwiftClient.RetryLimit=1",
+             "Cluster.PrivateClusterUDPPort=18123",
              "Logging.LogFilePath={}/{}".format(our_tempdir,
                                                 "proxyfsd_jrpcclient.log"),
              "Peer:Peer0.PrivateIPAddr={}".format(private_ip_addr),
