@@ -106,6 +106,19 @@ def build_jrpcclient(options):
 
 def wait_for_child(address, port, path="", interval=0.5, max_iterations=60,
                    process=None):
+    """
+    Wait until service at http://<address>:<port>/<path> is up.
+    If process is provided, we will check the process has not returned before
+    every request.
+
+    :param address: string
+    :param port: int
+    :param path: string
+    :param interval: float
+    :param max_iterations: int
+    :param process: subprocess
+    :return: bool
+    """
     # We're importing requests here to allow build process to work without
     # requests.
     import requests
