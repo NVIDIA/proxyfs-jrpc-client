@@ -104,7 +104,22 @@ def build_jrpcclient(options):
     return failures
 
 
-def wait_for_child(address, port, path="", interval=0.5, max_iterations=60):
+def wait_for_child(address, port, path="", interval=0.5, max_iterations=60,
+                   process=None):
+    """
+    Wait until service at http://<address>:<port>/<path> is up.
+    If process is provided, we will check the process has not returned before
+    every request.
+    We will return True if the service successfully comes up, False otherwise.
+
+    :param address: string
+    :param port: int
+    :param path: string
+    :param interval: float
+    :param max_iterations: int
+    :param process: subprocess
+    :return: bool
+    """
     # We're importing requests here to allow build process to work without
     # requests.
     import requests
@@ -113,13 +128,26 @@ def wait_for_child(address, port, path="", interval=0.5, max_iterations=60):
     is_child_up = False
     while not is_child_up and current_iteration < max_iterations:
         time.sleep(interval)
+        if process and process.poll():
+            # Early exit if a process is provided and it returns a return code
+            return False
         try:
-            r = requests.get('http://{}:{}/{}'.format(address, port, path), timeout=3)
+            r = requests.get('http://{}:{}/{}'.format(address, port, path),
+                             timeout=3)
             if r.status_code == 200:
                 is_child_up = True
         except Exception:
             pass
         current_iteration += 1
+    if not is_child_up:
+        print("Service at http://{}:{}/{} is not up after {} "
+              "iteration(s), with a {} seconds interval.".format(
+            address, port, path, max_iterations, interval))
+        try:
+            print("Last status code was {}.".format(
+                address, port, path, max_iterations, interval, r.status_code))
+        except Exception:
+            pass
     return is_child_up
 
 
@@ -149,7 +177,29 @@ def test_jrpcclient():
             cwd=proxyfs_package_path("ramswift")
         )
 
-        wait_for_child(private_ip_addr, ramswift_port, "info")
+        print("Waiting for ramswift to be up...")
+        if not wait_for_child(private_ip_addr, ramswift_port, "info",
+                              process=ramswift):
+            if ramswift.returncode:
+                color_printer("Before starting test, nonzero exit status "
+                              "returned from ramswift: "
+                              "{}".format(ramswift.returncode),
+                              color="bright red")
+            else:
+                color_printer("ramswift failed to start in a reasonable "
+                              "amount of time", color="bright red")
+            report("jrpcclient tests", False)
+
+            # Clean up
+            ramswift.terminate()
+
+            # Print out ramswift's stdout since it exited unexpectedly
+            if ramswift.stdout:
+                print(ramswift.stdout.read())
+
+            # If ramswift didn't return with a return code (simply not
+            # returning OK status codes), we'll return 1 here.
+            return ramswift.returncode or 1
 
         try:
             subprocess.check_call(
@@ -190,13 +240,20 @@ def test_jrpcclient():
             cwd=proxyfs_package_path("proxyfsd")
         )
 
-        # Make sure proxyfsd hasn't exited before we start the tests
-        proxyfsd.poll()
-        if proxyfsd.returncode:
-            color_printer("Before starting test, nonzero exit status returned "
-                          "from proxyfsd daemon: "
-                          "{}".format(proxyfsd.returncode), color="bright red")
-            report("jrpcclient tests", not proxyfsd.returncode)
+        # Wait a moment for proxyfsd to get set "Up()" or until it returns with
+        # a return code.
+        print("Waiting for ProxyFS to be up...")
+        if not wait_for_child(private_ip_addr, http_port, "version",
+                              process=proxyfsd):
+            if proxyfsd.returncode:
+                color_printer("Before starting test, nonzero exit status "
+                              "returned from proxyfsd daemon: "
+                              "{}".format(proxyfsd.returncode),
+                              color="bright red")
+            else:
+                color_printer("proxyfsd daemon failed to start in a "
+                              "reasonable amount of time", color="bright red")
+            report("jrpcclient tests", False)
 
             # Print out proxyfsd's stdout since it exited unexpectedly
             proxyfsd_logfile = "{}/{}".format(our_tempdir,
@@ -207,18 +264,13 @@ def test_jrpcclient():
 
             # Clean up
             ramswift.terminate()
-            return proxyfsd.returncode
+            # If proxyfsd didn't return with a return code (simply not
+            # returning OK status codes), we'll return 1 here.
+            return proxyfsd.returncode or 1
 
         rpc_config_string = "{}:{}/{}".format(private_ip_addr,
                                               jsonrpc_port,
                                               jsonrpc_fastport)
-
-        # wait a moment for proxyfsd to get set "Up()"
-        # wait_for_proxyfs(...) returns a boolean, but we'll let the rest of
-        # this script manage everything, just as it has been done until now and
-        # specifically manage the case where ProxyFS isn't up.
-
-        wait_for_child(private_ip_addr, http_port, "version")
 
         jrpcclient_tests = subprocess.Popen(
             [os.path.join(".", "test"),
