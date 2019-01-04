@@ -163,7 +163,29 @@ def test_jrpcclient():
             cwd=proxyfs_package_path("ramswift")
         )
 
-        wait_for_child(private_ip_addr, ramswift_port, "info")
+        print("Waiting for ramswift to be up...")
+        if not wait_for_child(private_ip_addr, ramswift_port, "info",
+                              process=ramswift):
+            if ramswift.returncode:
+                color_printer("Before starting test, nonzero exit status "
+                              "returned from ramswift: "
+                              "{}".format(ramswift.returncode),
+                              color="bright red")
+            else:
+                color_printer("ramswift failed to start in a reasonable "
+                              "amount of time", color="bright red")
+            report("jrpcclient tests", False)
+
+            # Clean up
+            ramswift.terminate()
+
+            # Print out ramswift's stdout since it exited unexpectedly
+            if ramswift.stdout:
+                print(ramswift.stdout.read())
+
+            # If ramswift didn't return with a return code (simply not
+            # returning OK status codes), we'll return 1 here.
+            return ramswift.returncode or 1
 
         try:
             subprocess.check_call(
@@ -228,7 +250,9 @@ def test_jrpcclient():
 
             # Clean up
             ramswift.terminate()
-            return proxyfsd.returncode
+            # If proxyfsd didn't return with a return code (simply not
+            # returning OK status codes), we'll return 1 here.
+            return proxyfsd.returncode or 1
 
         rpc_config_string = "{}:{}/{}".format(private_ip_addr,
                                               jsonrpc_port,
