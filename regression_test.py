@@ -110,6 +110,7 @@ def wait_for_child(address, port, path="", interval=0.5, max_iterations=60,
     Wait until service at http://<address>:<port>/<path> is up.
     If process is provided, we will check the process has not returned before
     every request.
+    We will return True if the service successfully comes up, False otherwise.
 
     :param address: string
     :param port: int
