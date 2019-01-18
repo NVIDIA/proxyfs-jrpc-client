@@ -13,7 +13,6 @@
 #include <proxyfs_testing.h>
 #include "fault_inj.h"
 
-
 // Flag that can be set from a command line arg to make tests less chatty
 static bool quiet = true;
 
@@ -496,10 +495,10 @@ void print_stat_vfs(struct statvfs* stat_vfs) {
 //
 // Mount handle
 static mount_handle_t* mount_handle = NULL;
-static mount_handle_t  bad_id_mount_handle = { NULL, 99999, 0 };
+static mount_handle_t  bad_id_mount_handle = { NULL, "", {0,0,0,0,0,0,0,0,0,0,0,0}, 0 };
 
 // API to return mount handle; makes it easier to mess with it in one place
-mount_handle_t* mount_id() {
+mount_handle_t* fetch_mount_handle() {
     if ( fail(BAD_MOUNT_ID) ) {
         return &bad_id_mount_handle;
     } else {
@@ -1031,7 +1030,7 @@ void test_log(char* message) {
     int exp_status = 0;
     char* funcToTest = funcs[LOG];
     TLOG("Calling %s with message %s\n", funcToTest, message);
-    int err = proxyfs_log(mount_id(), message);
+    int err = proxyfs_log(fetch_mount_handle(), message);
     if (err == exp_status) {
         TLOG("SUCCESS, Got status=%d from %s.\n\n",err,funcToTest);
     } else {
@@ -1067,7 +1066,7 @@ void dump_dir_listing(uint64_t inode) {
     int     err                = 0;
     for (;;) {
         struct dirent* dir_ent = NULL;
-        err = proxyfs_readdir_by_loc(mount_id(), inode, prevDirLoc, &dir_ent);
+        err = proxyfs_readdir_by_loc(fetch_mount_handle(), inode, prevDirLoc, &dir_ent);
 
         if (err == 0) {
             if (dir_ent != NULL) {
@@ -1100,7 +1099,7 @@ void test_mkdir(file_id_t id, uint64_t parent_inode, uid_t uid, gid_t gid, mode_
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for %s (%d), expect status %d\n", funcToTest, fi->basename, (int)id, exp_status);
-    int err = proxyfs_mkdir(mount_id(), parent_inode, fi->basename, uid, gid, mode, &fi->inode);
+    int err = proxyfs_mkdir(fetch_mount_handle(), parent_inode, fi->basename, uid, gid, mode, &fi->inode);
     update_perms(err, mode, id, uid, gid); // If success, update file_info
     update_parent(err, id, parent_inode); // If success, update file_info
     handle_api_return_with_inode(funcToTest, err, exp_status, fi->inode);
@@ -1119,7 +1118,7 @@ void test_mkdir_path(file_id_t id, uid_t uid, gid_t gid, mode_t mode, int exp_st
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for %s (%d), expect status %d\n", funcToTest, fi->fullpath, (int)id, exp_status);
-    int err = proxyfs_mkdir_path(mount_id(), fi->fullpath, uid, gid, mode);
+    int err = proxyfs_mkdir_path(fetch_mount_handle(), fi->fullpath, uid, gid, mode);
     update_perms(err, mode, id, uid, gid); // If success, update file_info
     handle_api_return(funcToTest, err, exp_status);
 }
@@ -1140,7 +1139,7 @@ void test_chmod(file_id_t id, mode_t mode, mode_t exp_mode, int exp_status) {
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for inode %" PRIu64 " with mode 0x%x, expect status %d\n", funcToTest, fi->inode, mode, exp_status);
-    int err = proxyfs_chmod(mount_id(), fi->inode, mode);
+    int err = proxyfs_chmod(fetch_mount_handle(), fi->inode, mode);
     update_mode(err, id, exp_mode); // If success, update file_info
     handle_api_return(funcToTest, err, exp_status);
 }
@@ -1158,7 +1157,7 @@ void test_chmod_path(file_id_t id, mode_t mode, mode_t exp_mode, int exp_status)
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for fullpath %s with mode 0x%x, expect status %d\n", funcToTest, fi->fullpath, mode, exp_status);
-    int err = proxyfs_chmod_path(mount_id(), fi->fullpath, mode);
+    int err = proxyfs_chmod_path(fetch_mount_handle(), fi->fullpath, mode);
     update_mode(err, id, exp_mode); // If success, update file_info
     handle_api_return(funcToTest, err, exp_status);
 }
@@ -1179,7 +1178,7 @@ void test_chown(file_id_t id, uid_t uid, gid_t gid, int exp_status) {
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for inode %" PRIu64 " with uid %d gid %d, expect status %d\n", funcToTest, fi->inode, uid, gid, exp_status);
-    int err = proxyfs_chown(mount_id(), fi->inode, uid, gid);
+    int err = proxyfs_chown(fetch_mount_handle(), fi->inode, uid, gid);
     update_uid_gid(err, id, uid, gid); // If success, update file_info
     handle_api_return(funcToTest, err, exp_status);
 }
@@ -1197,7 +1196,7 @@ void test_chown_path(file_id_t id, uid_t uid, gid_t gid, int exp_status) {
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for fullpath %s with uid %d gid %d, expect status %d\n", funcToTest, fi->fullpath, uid, gid, exp_status);
-    int err = proxyfs_chown_path(mount_id(), fi->fullpath, uid, gid);
+    int err = proxyfs_chown_path(fetch_mount_handle(), fi->fullpath, uid, gid);
     update_uid_gid(err, id, uid, gid); // If success, update file_info
     handle_api_return(funcToTest, err, exp_status);
 }
@@ -1223,7 +1222,7 @@ void test_create(file_id_t id, uint64_t parent_inode, uid_t uid, gid_t gid, mode
     }
 
     TLOG("Calling %s for %s (%d) with mode 0x%x, expect status %d\n", funcToTest, fi->basename, (int)id, mode, exp_status);
-    int err = proxyfs_create(mount_id(), parent_inode, fi->basename, uid, gid, mode, &fi->inode);
+    int err = proxyfs_create(fetch_mount_handle(), parent_inode, fi->basename, uid, gid, mode, &fi->inode);
     update_perms(err, id, mode, uid, gid); // If success, update file_info
     handle_api_return_with_inode(funcToTest, err, exp_status, fi->inode);
 }
@@ -1241,7 +1240,7 @@ void test_create_path(file_id_t id, uid_t uid, gid_t gid, mode_t mode, int exp_s
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for %s (%d) with mode 0x%x, expect status %d\n", funcToTest, fi->fullpath, (int)id, mode, exp_status);
-    int err = proxyfs_create_path(mount_id(), fi->fullpath, uid, gid, mode, &fi->inode);
+    int err = proxyfs_create_path(fetch_mount_handle(), fi->fullpath, uid, gid, mode, &fi->inode);
     update_perms(err, id, mode, uid, gid); // If success, update file_info
     handle_api_return_with_inode(funcToTest, err, exp_status, fi->inode);
 }
@@ -1267,7 +1266,7 @@ void test_link(file_id_t id, uint64_t parent_inode, uint64_t target_inode, int e
     }
 
     TLOG("Calling %s for basename %s and target inode %" PRIu64 ", expect status %d.\n",funcToTest, fi->basename, target_inode, exp_status);
-    int err = proxyfs_link(mount_id(), parent_inode, fi->basename, target_inode);
+    int err = proxyfs_link(fetch_mount_handle(), parent_inode, fi->basename, target_inode);
     handle_api_return(funcToTest, err, exp_status);
 }
 
@@ -1284,7 +1283,7 @@ void test_link_path(file_id_t id, char* tgt_fullpath, int exp_status) {
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for source %s target %s, expect status %d\n", funcToTest, fi->fullpath, tgt_fullpath, exp_status);
-    int err = proxyfs_link_path(mount_id(), fi->fullpath, tgt_fullpath);
+    int err = proxyfs_link_path(fetch_mount_handle(), fi->fullpath, tgt_fullpath);
     handle_api_return(funcToTest, err, exp_status);
 }
 
@@ -1309,7 +1308,7 @@ void test_symlink(file_id_t id, uint64_t parent_inode, char* target, uid_t uid, 
     }
 
     TLOG("Calling %s for basename %s and target %s, expect status %d.\n",funcToTest, fi->basename, target, exp_status);
-    int err = proxyfs_symlink(mount_id(), parent_inode, fi->basename, target, uid, gid);
+    int err = proxyfs_symlink(fetch_mount_handle(), parent_inode, fi->basename, target, uid, gid);
     update_perms(err, id, 0777, uid, gid); // If success, update file_info
     handle_api_return(funcToTest, err, exp_status);
 }
@@ -1327,7 +1326,7 @@ void test_symlink_path(file_id_t id, char* tgt_fullpath, uid_t uid, gid_t gid, i
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for source %s target %s, expect status %d\n", funcToTest, fi->fullpath, tgt_fullpath, exp_status);
-    int err = proxyfs_symlink_path(mount_id(), fi->fullpath, tgt_fullpath, uid, gid);
+    int err = proxyfs_symlink_path(fetch_mount_handle(), fi->fullpath, tgt_fullpath, uid, gid);
     update_perms(err, id, 0777, uid, gid); // If success, update file_info
     handle_api_return(funcToTest, err, exp_status);
 }
@@ -1346,7 +1345,7 @@ void do_lookup(file_id_t id, int exp_status) {
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for basename %s and dir inode %" PRIu64 ", expect status %d.\n",funcToTest, fi->basename, fi->parent_inode, exp_status);
-    int err = proxyfs_lookup(mount_id(), fi->parent_inode, fi->basename, &fi->inode);
+    int err = proxyfs_lookup(fetch_mount_handle(), fi->parent_inode, fi->basename, &fi->inode);
     handle_api_return_with_inode(funcToTest, err, exp_status, fi->inode);
 }
 
@@ -1365,7 +1364,7 @@ void test_lookup(file_id_t id, int exp_status) {
 
     TLOG("Calling %s for basename %s and dir inode %" PRIu64 ", expect status %d.\n",funcToTest, fi->basename, fi->parent_inode, exp_status);
     uint64_t rtn_inode = 0;
-    int err = proxyfs_lookup(mount_id(), fi->parent_inode, fi->basename, &rtn_inode);
+    int err = proxyfs_lookup(fetch_mount_handle(), fi->parent_inode, fi->basename, &rtn_inode);
     handle_api_return_with_exp_inode(funcToTest, err, exp_status, rtn_inode, fi->inode);
 }
 
@@ -1378,7 +1377,7 @@ void test_lookup_path(char* fullpath, int exp_status, uint64_t exp_inode) {
     char* funcToTest = funcs[LOOKUP_PATH];
     TLOG("Calling %s for %s, expect status %d\n", funcToTest, fullpath, exp_status);
     uint64_t rtn_inode = 0;
-    int err = proxyfs_lookup_path(mount_id(), fullpath, &rtn_inode);
+    int err = proxyfs_lookup_path(fetch_mount_handle(), fullpath, &rtn_inode);
     handle_api_return_with_exp_inode(funcToTest, err, exp_status, rtn_inode, exp_inode);
 }
 
@@ -1399,7 +1398,7 @@ void test_write(file_id_t id, uint64_t offset, uint64_t length, uint8_t* buf, in
 
     TLOG("Calling %s for inode %" PRIu64 ", with offset %" PRIu64 " length %" PRIu64 ", expect status %d.\n",funcToTest, fi->inode, offset, length, exp_status);
     uint64_t bytesWritten = 0;
-    int err = proxyfs_write(mount_id(), fi->inode, offset, buf, length, &bytesWritten);
+    int err = proxyfs_write(fetch_mount_handle(), fi->inode, offset, buf, length, &bytesWritten);
     handle_api_return_with_exp_len(funcToTest, err, exp_status, bytesWritten, length);
 }
 
@@ -1419,7 +1418,7 @@ void test_flush(file_id_t id, int exp_status) {
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for inode %" PRIu64 ", expect status %d.\n",funcToTest, fi->inode, exp_status);
-    int err = proxyfs_flush(mount_id(), fi->inode);
+    int err = proxyfs_flush(fetch_mount_handle(), fi->inode);
     handle_api_return(funcToTest, err, exp_status);
 }
 
@@ -1445,7 +1444,7 @@ void test_read_past_eof(file_id_t id, uint64_t offset, uint64_t length, uint8_t*
     size_t   bytesRead   = 0;
 
     TLOG("Calling %s for inode %" PRIu64 " offset %" PRIu64 " length %" PRIu64 ", expect status %d and length %zu.\n",funcToTest, fi->inode, offset, length, exp_status, exp_len);
-    int err = proxyfs_read(mount_id(), fi->inode, offset, length, readBufPtr, readBufSize, &bytesRead);
+    int err = proxyfs_read(fetch_mount_handle(), fi->inode, offset, length, readBufPtr, readBufSize, &bytesRead);
     handle_api_return_with_exp_len_and_buf(funcToTest, err, exp_status, bytesRead, exp_len, readBufPtr, exp_buf);
 
     // Free the read data now that we're done with it
@@ -1489,7 +1488,7 @@ test_callback_info_t* alloc_cb_info(uint64_t in_inode_number,
     }
 
     cb_info->req.op           = IO_NONE;
-    cb_info->req.mount_handle = mount_id();
+    cb_info->req.mount_handle = fetch_mount_handle();
     cb_info->req.inode_number = in_inode_number;
     cb_info->req.offset       = in_offset;
     cb_info->req.length       = in_length;
@@ -1715,7 +1714,7 @@ void test_read_symlink(file_id_t id, char* exp_target, int exp_status) {
 
     TLOG("Calling %s on inode %" PRIu64 ", expect status %d.\n",funcToTest, fi->inode, exp_status);
     const char* target = NULL;
-    int err = proxyfs_read_symlink(mount_id(), fi->inode, &target);
+    int err = proxyfs_read_symlink(fetch_mount_handle(), fi->inode, &target);
     handle_api_return_with_exp_target(funcToTest, err, exp_status, target, exp_target);
     if (target != NULL) {
         free((void*)target);
@@ -1737,7 +1736,7 @@ void test_read_symlink_path(file_id_t id, char* exp_target, int exp_status) {
 
     TLOG("Calling %s for fullpath %s, expect status %d\n", funcToTest, fi->fullpath, exp_status);
     const char* target = NULL;
-    int err = proxyfs_read_symlink_path(mount_id(), fi->fullpath, &target);
+    int err = proxyfs_read_symlink_path(fetch_mount_handle(), fi->fullpath, &target);
     handle_api_return_with_exp_target(funcToTest, err, exp_status, target, exp_target);
     if (target != NULL) {
         free((void*)target);
@@ -1763,7 +1762,7 @@ void test_readdir(file_id_t id, int prevDirLoc, int exp_status) {
     TLOG("Calling %s on inode %" PRIu64 " with previous location %d, expect status %d.\n", funcToTest, fi->inode, prevDirLoc, exp_status);
 
     struct dirent* dir_ent = NULL;
-    int err = proxyfs_readdir_by_loc(mount_id(), fi->inode, prevDirLoc, &dir_ent);
+    int err = proxyfs_readdir_by_loc(fetch_mount_handle(), fi->inode, prevDirLoc, &dir_ent);
     handle_api_return_with_dirent(funcToTest, err, fi->inode, dir_ent, prevDirLoc, exp_status);
 
     if (dir_ent != NULL) {
@@ -1797,7 +1796,7 @@ void test_readdir_all(file_id_t id, int exp_status, int files_expected, char *ch
         TLOG("Calling %s on inode %" PRIu64 " with previous location %" PRId64 ", expect status %d.\n", funcToTest, fi->inode, prevDirLoc, exp_status);
 
         struct dirent* dir_ent = NULL;
-        err = proxyfs_readdir_by_loc(mount_id(), fi->inode, prevDirLoc - 1, &dir_ent);
+        err = proxyfs_readdir_by_loc(fetch_mount_handle(), fi->inode, prevDirLoc - 1, &dir_ent);
         handle_api_return_with_dirent(funcToTest, err, fi->inode, dir_ent, prevDirLoc - 1, exp_status);
 
         if (dir_ent != NULL) {
@@ -1844,7 +1843,7 @@ void test_readdir_plus(file_id_t id, int prevDirLoc, int exp_status) {
 
     struct dirent* dir_ent = NULL;
     proxyfs_stat_t* stat = NULL;
-    int err = proxyfs_readdir_plus_by_loc(mount_id(), fi->inode, prevDirLoc - 1, &dir_ent, &stat);
+    int err = proxyfs_readdir_plus_by_loc(fetch_mount_handle(), fi->inode, prevDirLoc - 1, &dir_ent, &stat);
     handle_api_return_with_dirent_stat(funcToTest, err, fi->inode, dir_ent, stat, prevDirLoc - 1, exp_status);
 
     if (dir_ent != NULL) {
@@ -1884,7 +1883,7 @@ void test_readdir_plus_all(file_id_t id, int exp_status, int files_expected, cha
 
         struct dirent* dir_ent = NULL;
         proxyfs_stat_t* stat = NULL;
-        err = proxyfs_readdir_plus_by_loc(mount_id(), fi->inode, prevDirLoc - 1, &dir_ent, &stat);
+        err = proxyfs_readdir_plus_by_loc(fetch_mount_handle(), fi->inode, prevDirLoc - 1, &dir_ent, &stat);
         handle_api_return_with_dirent_stat(funcToTest, err, fi->inode, dir_ent, stat, prevDirLoc - 1, exp_status);
 
         if (dir_ent != NULL) {
@@ -1934,7 +1933,7 @@ void test_get_stat(file_id_t id, int expectedSize, int exp_status) {
     TLOG("Calling %s on inode %" PRIu64 ", expect status %d.\n",funcToTest, fi->inode, exp_status);
 
     proxyfs_stat_t* stat = NULL;
-    int err = proxyfs_get_stat(mount_id(), fi->inode, &stat);
+    int err = proxyfs_get_stat(fetch_mount_handle(), fi->inode, &stat);
     handle_api_return_with_stat(funcToTest, err, exp_status, fi->inode, fi->mode, fi->uid, fi->gid, stat, expectedSize);
 
     if (stat != NULL) {
@@ -1962,7 +1961,7 @@ void test_get_stat_path(file_id_t id, int expectedSize, int exp_status) {
     TLOG("Calling %s on fullpath %s, expect status %d.\n",funcToTest, fi->fullpath, exp_status);
 
     proxyfs_stat_t* stat = NULL;
-    int err = proxyfs_get_stat_path(mount_id(), fi->fullpath, &stat);
+    int err = proxyfs_get_stat_path(fetch_mount_handle(), fi->fullpath, &stat);
     handle_api_return_with_stat(funcToTest, err, exp_status, fi->inode, fi->mode, fi->uid, fi->gid, stat, expectedSize);
 
     if (stat != NULL) {
@@ -1989,7 +1988,7 @@ void test_get_stat_atime_mtime(file_id_t id, int exp_status, proxyfs_timespec_t*
     TLOG("Calling %s on inode %" PRIu64 ", expect status %d.\n",funcToTest, fi->inode, exp_status);
 
     proxyfs_stat_t* stat = NULL;
-    int err = proxyfs_get_stat(mount_id(), fi->inode, &stat);
+    int err = proxyfs_get_stat(fetch_mount_handle(), fi->inode, &stat);
     handle_api_return_with_atime_mtime(funcToTest, err, exp_status, stat, exp_atime, exp_mtime);
 
     if (stat != NULL) {
@@ -2015,7 +2014,7 @@ void test_set_time(file_id_t id, proxyfs_timespec_t* atime, proxyfs_timespec_t* 
 
     TLOG("Calling %s on inode %" PRIu64 ", expect status %d.\n",funcToTest, fi->inode, exp_status);
 
-    int err = proxyfs_settime(mount_id(), fi->inode, atime, mtime);
+    int err = proxyfs_settime(fetch_mount_handle(), fi->inode, atime, mtime);
     handle_api_return(funcToTest, err, exp_status);
 }
 
@@ -2033,7 +2032,7 @@ void test_set_time_path(file_id_t id, proxyfs_timespec_t* atime, proxyfs_timespe
 
     TLOG("Calling %s on fullpath %s, expect status %d.\n",funcToTest, fi->fullpath, exp_status);
 
-    int err = proxyfs_settime_path(mount_id(), fi->fullpath, atime, mtime);
+    int err = proxyfs_settime_path(fetch_mount_handle(), fi->fullpath, atime, mtime);
     handle_api_return(funcToTest, err, exp_status);
 }
 
@@ -2048,7 +2047,7 @@ void test_statvfs(int expectedSize, int exp_status) {
     TLOG("Calling %s, expect status %d.\n", funcToTest, exp_status);
 
     struct statvfs* out_statvfs = NULL;
-    int err = proxyfs_statvfs(mount_id(), &out_statvfs);
+    int err = proxyfs_statvfs(fetch_mount_handle(), &out_statvfs);
     handle_api_return_with_statvfs(funcToTest, err, exp_status, expectedSize, out_statvfs);
 
     if (out_statvfs != NULL) {
@@ -2074,7 +2073,7 @@ void test_resize(file_id_t id, uint64_t newSize, int exp_status) {
 
     TLOG("Calling %s on inode %" PRIu64 " with size %" PRIu64 ", expect status %d.\n",funcToTest, fi->inode, newSize, exp_status);
 
-    int err = proxyfs_resize(mount_id(), fi->inode, newSize);
+    int err = proxyfs_resize(fetch_mount_handle(), fi->inode, newSize);
     handle_api_return(funcToTest, err, exp_status);
 }
 
@@ -2096,7 +2095,7 @@ void test_type(file_id_t id, uint16_t exp_type, int exp_status) {
     TLOG("Calling %s on inode %" PRIu64 ", expect status %d.\n",funcToTest, fi->inode, exp_status);
 
     uint16_t file_type = 0;
-    int err = proxyfs_type(mount_id(), fi->inode, &file_type);
+    int err = proxyfs_type(fetch_mount_handle(), fi->inode, &file_type);
     handle_api_return_type(funcToTest, err, exp_status, file_type, exp_type);
 }
 
@@ -2116,7 +2115,7 @@ void test_rmdir(file_id_t id, int exp_status) {
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for %s (%d), expect status %d\n", funcToTest, fi->basename, (int)id, exp_status);
-    int err = proxyfs_rmdir(mount_id(), fi->parent_inode, fi->basename);
+    int err = proxyfs_rmdir(fetch_mount_handle(), fi->parent_inode, fi->basename);
     handle_api_return(funcToTest, err, exp_status);
 }
 
@@ -2135,7 +2134,7 @@ void test_rmdir_path(file_id_t id, int exp_status) {
     //print_one_file_info(fi);
 
     TLOG("Calling %s for %s (%d), expect status %d\n", funcToTest, fi->fullpath, (int)id, exp_status);
-    int err = proxyfs_rmdir_path(mount_id(), fi->fullpath);
+    int err = proxyfs_rmdir_path(fetch_mount_handle(), fi->fullpath);
     handle_api_return(funcToTest, err, exp_status);
 }
 
@@ -2152,7 +2151,7 @@ void test_unlink(file_id_t id, int exp_status) {
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for %s, expect status %d\n", funcToTest, fi->basename, exp_status);
-    int err = proxyfs_unlink(mount_id(), fi->parent_inode, fi->basename);
+    int err = proxyfs_unlink(fetch_mount_handle(), fi->parent_inode, fi->basename);
     handle_api_return(funcToTest, err, exp_status);
 }
 
@@ -2169,7 +2168,7 @@ void test_unlink_path(file_id_t id, int exp_status) {
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for %s, expect status %d\n", funcToTest, fi->fullpath, exp_status);
-    int err = proxyfs_unlink_path(mount_id(), fi->fullpath);
+    int err = proxyfs_unlink_path(fetch_mount_handle(), fi->fullpath);
     handle_api_return(funcToTest, err, exp_status);
 }
 
@@ -2186,7 +2185,7 @@ void test_rename_path(file_id_t id, char* new_fullpath, int exp_status) {
     file_info_t* fi = &file_info[id];
 
     TLOG("Calling %s for %s, expect status %d\n", funcToTest, fi->fullpath, exp_status);
-    int err = proxyfs_rename_path(mount_id(), fi->fullpath, new_fullpath);
+    int err = proxyfs_rename_path(fetch_mount_handle(), fi->fullpath, new_fullpath);
     handle_api_return(funcToTest, err, exp_status);
 
     // Update what we have stored for this record in our test framework
@@ -2376,7 +2375,7 @@ int mount_tests()
         // Update the ROOT_DIR inode of second mount
         update_file_info(ROOT_DIR, 0, root_inode());
 
-        proxyfs_unmount(mount_id());
+        proxyfs_unmount(fetch_mount_handle());
     }
     mount_handle = saved_mount_handle;
 
@@ -3274,7 +3273,7 @@ void unmount_tests()
     // Unmount        A  : unmount the Volume
     char* funcToTest = funcs[UNMOUNT];
     TLOG("Calling %s.\n",funcToTest);
-    proxyfs_unmount(mount_id());
+    proxyfs_unmount(fetch_mount_handle());
 }
 
 void statvfs_tests()

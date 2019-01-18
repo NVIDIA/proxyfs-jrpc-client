@@ -22,12 +22,15 @@ void rpc_config_parse(const char *rpc_config_string);
 struct rpc_handle_t;
 typedef struct rpc_handle_t jsonrpc_handle_t;
 
-#define MAX_VOL_NAME_LENGTH   128
-#define MAX_USER_NAME_LENGTH  128
+#define MAX_VOL_NAME_LENGTH  128
+#define MAX_USER_NAME_LENGTH 128
+
+#define MOUNT_ID_SIZE 16
 
 typedef struct {
     jsonrpc_handle_t* rpc_handle;
-    uint64_t          mount_id;
+    char*             mount_id_as_str;
+    uint8_t           mount_id_as_bytes[MOUNT_ID_SIZE];
     uint64_t          root_dir_inode_num;
     char              volume_name[MAX_VOL_NAME_LENGTH];
     uint64_t          mount_options;

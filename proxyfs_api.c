@@ -20,6 +20,19 @@
 bool use_fastpath_for_read  = true;
 bool use_fastpath_for_write = true;
 
+typedef struct {
+    uint64_t   op_type;
+    uint8_t    mount_id[MOUNT_ID_SIZE];
+    uint64_t   inode_number;
+    uint64_t   offset;
+    uint64_t   length;
+} io_req_hdr_t;
+
+typedef struct {
+    uint64_t   error;
+    uint64_t   io_size;
+} io_resp_hdr_t;
+
 void proxyfs_set_rw_fastpath()
 {
     use_fastpath_for_read  = true;
@@ -33,7 +46,6 @@ void proxyfs_unset_rw_fastpath()
 }
 
 uint64_t endOfRequest = 0x9988776655443322;
-
 
 typedef enum {
     VOL_NAME = 0,
@@ -213,7 +225,7 @@ void handle_rsp_error(const char* callingFunc, int* rsp_err, mount_handle_t* mou
         if (rsp_status != 0) {
             DPRINTF("error=%d was returned from proxyfs_remount.\n",rsp_status);
         } else {
-            DPRINTF("remount returned mount id=%zu.\n",mount_handle->mount_id);
+            DPRINTF("remount returned mount id=%zu.\n",mount_handle->mount_id_as_str);
         }
 //        // Call the RPC to do the mount
 //        int rsp_status = proxyfs_remount_async(mount_handle);
@@ -244,7 +256,7 @@ int proxyfs_chmod(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcChmod");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     jsonrpc_set_req_param_int   (ctx, ptable[MODE],      in_mode);
 
@@ -272,9 +284,9 @@ int proxyfs_chmod_path(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcChmodPath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH],  in_fullpath);
-    jsonrpc_set_req_param_int   (ctx, ptable[MODE],      in_mode);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
+    jsonrpc_set_req_param_int(ctx, ptable[MODE],     in_mode);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -308,7 +320,7 @@ int proxyfs_chown(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcChown");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     jsonrpc_set_req_param_int   (ctx, ptable[USERID],    in_owner);
     jsonrpc_set_req_param_int   (ctx, ptable[GROUPID],   in_group);
@@ -342,10 +354,10 @@ int proxyfs_chown_path(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcChownPath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH],  in_fullpath);
-    jsonrpc_set_req_param_int   (ctx, ptable[USERID],    in_owner);
-    jsonrpc_set_req_param_int   (ctx, ptable[GROUPID],   in_group);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
+    jsonrpc_set_req_param_int(ctx, ptable[USERID],   in_owner);
+    jsonrpc_set_req_param_int(ctx, ptable[GROUPID],  in_group);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -374,7 +386,7 @@ int proxyfs_create(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcCreate");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     jsonrpc_set_req_param_str   (ctx, ptable[BASENAME],  in_basename);
     jsonrpc_set_req_param_int   (ctx, ptable[USERID],    in_uid);
@@ -410,11 +422,11 @@ int proxyfs_create_path(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcCreatePath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH],  in_fullpath);
-    jsonrpc_set_req_param_int   (ctx, ptable[USERID],    in_uid);
-    jsonrpc_set_req_param_int   (ctx, ptable[GROUPID],   in_gid);
-    jsonrpc_set_req_param_int   (ctx, ptable[MODE],      in_mode);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
+    jsonrpc_set_req_param_int(ctx, ptable[USERID],   in_uid);
+    jsonrpc_set_req_param_int(ctx, ptable[GROUPID],  in_gid);
+    jsonrpc_set_req_param_int(ctx, ptable[MODE],     in_mode);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -447,7 +459,7 @@ int proxyfs_flock(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcFlock");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],     in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],     in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],    in_inode_number);
     jsonrpc_set_req_param_int   (ctx, ptable[FLOCK_CMD],    in_lock_cmd);
     jsonrpc_set_req_param_int   (ctx, ptable[FLOCK_TYPE],   flock->l_type);
@@ -489,7 +501,7 @@ int proxyfs_flush(mount_handle_t* in_mount_handle,
     jsonrpc_set_profiler(ctx, profiler);
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
 
     // Add timestamp of when we sent the request
@@ -608,7 +620,7 @@ int proxyfs_get_stat(mount_handle_t*  in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcGetStat");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
 
     // Call RPC
@@ -644,8 +656,8 @@ int proxyfs_get_stat_path(mount_handle_t*  in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcGetStatPath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH],  in_fullpath);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -684,11 +696,11 @@ static int proxyfs_get_xattr1(mount_handle_t* in_mount_handle,
 
     if (in_fullpath == NULL) {
         ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcGetXAttr");
-        jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+        jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
         jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     } else {
         ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcGetXAttrPath");
-        jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+        jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
         jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
     }
 
@@ -777,9 +789,9 @@ int proxyfs_link(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcLink");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
-    jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
-    jsonrpc_set_req_param_str   (ctx, ptable[BASENAME],  in_basename);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],      in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],     in_inode_number);
+    jsonrpc_set_req_param_str   (ctx, ptable[BASENAME],      in_basename);
     jsonrpc_set_req_param_uint64(ctx, ptable[TGT_INODE_NUM], in_target_inode_number);
 
     // Call RPC
@@ -805,9 +817,9 @@ int proxyfs_link_path(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcLinkPath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],     in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH],     in_src_fullpath);
-    jsonrpc_set_req_param_str   (ctx, ptable[TGT_FULLPATH], in_tgt_fullpath);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID],     in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH],     in_src_fullpath);
+    jsonrpc_set_req_param_str(ctx, ptable[TGT_FULLPATH], in_tgt_fullpath);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -835,11 +847,11 @@ static int proxyfs_list_xattr1(mount_handle_t* in_mount_handle,
 
     if (in_fullpath == NULL) {
         ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcListXAttr");
-        jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+        jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
         jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     } else {
         ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcListXAttrPath");
-        jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+        jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
         jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
     }
 
@@ -927,7 +939,7 @@ int proxyfs_lookup(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcLookup");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     jsonrpc_set_req_param_str   (ctx, ptable[BASENAME],  in_basename);
 
@@ -957,8 +969,8 @@ int proxyfs_lookup_path(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcLookupPath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH], in_fullpath);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -990,7 +1002,7 @@ int proxyfs_mkdir(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcMkdir");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     jsonrpc_set_req_param_str   (ctx, ptable[BASENAME],  in_basename);
     jsonrpc_set_req_param_int   (ctx, ptable[USERID],    in_uid);
@@ -1023,11 +1035,11 @@ int proxyfs_mkdir_path(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcMkdirPath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH], in_fullpath);
-    jsonrpc_set_req_param_int   (ctx, ptable[USERID],   in_uid);
-    jsonrpc_set_req_param_int   (ctx, ptable[GROUPID],  in_gid);
-    jsonrpc_set_req_param_int   (ctx, ptable[MODE],     in_mode);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
+    jsonrpc_set_req_param_int(ctx, ptable[USERID],   in_uid);
+    jsonrpc_set_req_param_int(ctx, ptable[GROUPID],  in_gid);
+    jsonrpc_set_req_param_int(ctx, ptable[MODE],     in_mode);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -1061,7 +1073,7 @@ int proxyfs_mount(char*            in_volume_name,
     //
     mount_handle_t* handle     = (mount_handle_t*)malloc(sizeof(mount_handle_t));
     handle->rpc_handle         = pfs_rpc_open();  // XXX TODO: move inside proxyfs_jsonrpc.c?
-    handle->mount_id           = 0;
+    handle->mount_id_as_str    = NULL;
     handle->root_dir_inode_num = 0;
     handle->mount_options      = in_mount_options;
     handle->auth_user_id       = in_auth_user_id;
@@ -1114,7 +1126,7 @@ int proxyfs_mount(char*            in_volume_name,
 int proxyfs_remount(mount_handle_t* in_mount_handle)
 {
     // Get context and set the method
-    jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcMount");
+    jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcMountByVolumeName");
 
     // Set the params based on what was passed in
     jsonrpc_set_req_param_str(   ctx, ptable[VOL_NAME],      in_mount_handle->volume_name);
@@ -1125,9 +1137,14 @@ int proxyfs_remount(mount_handle_t* in_mount_handle)
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
     if (rsp_status == 0) {
-        // Success; Set the return values
-        in_mount_handle->mount_id           = jsonrpc_get_resp_uint64(ctx, ptable[MOUNT_ID]);
+        // Success; Set the return values (assuming .mount_id_as_str decodes)
+        in_mount_handle->mount_id_as_str    = strdup(jsonrpc_get_resp_str(ctx, ptable[MOUNT_ID]));
         in_mount_handle->root_dir_inode_num = jsonrpc_get_resp_uint64(ctx, ptable[ROOT_DIR_INODE_NUM]);
+
+        rsp_status = proxyfs_decode_mount_id(in_mount_handle);
+        if (rsp_status != 0) {
+            handle_rsp_error(__FUNCTION__, &rsp_status, in_mount_handle);
+        }
     } else {
         handle_rsp_error(__FUNCTION__, &rsp_status, in_mount_handle);
     }
@@ -1137,69 +1154,102 @@ int proxyfs_remount(mount_handle_t* in_mount_handle)
     return rsp_status;
 }
 
-#if 0
-// XXX TODO: Not currently being used, but leaving here for now
-void proxyfs_remount_response_callback(jsonrpc_context_t* ctx)
+// proxyfs_base64_decode_table is used in proxyfs_decode_mount_id
+//
+static const uint8_t proxyfs_base64_decode_table[256] =
 {
-    mount_handle_t*         in_mount_handle = NULL;
-    jsonrpc_done_callback_t not_used_callback = NULL;
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, // 00-0F
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, // 10-1F
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 62, 64, 64, 64, 63, // 20-2F
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 64, 64, 64,  0, 64, 64, // 30-3F - Ascii '=' decodes as zero 6-bits
+    64,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, // 40-4F
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 64, 64, 64, 64, 64, // 50-5F
+    64, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, // 60-6F
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 64, 64, 64, 64, 64, // 70-7F
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, // 80-8F
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, // 90-9F
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, // A0-AF
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, // B0-BF
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, // C0-CF
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, // D0-DF
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, // E0-EF
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64  // F0-FF
+};
 
-    // Fetch the callback info out of the ctx
-    int rc = jsonrpc_get_callback_info(ctx, &not_used_callback,
-                                       (void*)&in_mount_handle);
-    if (rc != 0) {
-        // we had a problem fetching our callback context info
-        DPRINTF("ERROR, unable to fetch callback info! rc=%d\n",rc);
-
-        // Since we can't find the callback, nothing more to do :(
-        return;
-    }
-    //jsonrpc_dump_user_callback(ctx);
-
-    // Extract response status from the context
-    int rsp_status = jsonrpc_get_resp_status(ctx);
-    if (rsp_status == 0) {
-        // Success; Set the return values
-        in_mount_handle->mount_id           = jsonrpc_get_resp_uint64(ctx, ptable[MOUNT_ID]);
-        in_mount_handle->root_dir_inode_num = jsonrpc_get_resp_uint64(ctx, ptable[ROOT_DIR_INODE_NUM]);
-        DPRINTF("remount returned mount id=%zu.\n",in_mount_handle->mount_id);
-    } else {
-        DPRINTF("error=%d was returned from proxyfs_remount.\n",rsp_status);
-        handle_rsp_error(__FUNCTION__, &rsp_status, in_mount_handle);
-    }
-
-    // Since this is an internal request, there is no user callback to invoke here.
-
-    // Clean up jsonrpc context and return
-    jsonrpc_close(ctx);
-}
-
-// XXX TODO: Not currently being used, but leaving here for now
-int proxyfs_remount_async(mount_handle_t* in_mount_handle)
+// proxyfs_decode_mount_id decodes the Base64-encoded .mount_id_as_str field
+// into the binary .mount_id_as_mount_id_as_bytes field.
+//
+// Returns:
+//   0 if successful
+//   ENOENT if unsuccessful
+//
+int proxyfs_decode_mount_id(mount_handle_t *in_mount_handle)
 {
-    // Get context and set the method
-    jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcMount");
+    int      as_bytes_index;
+    uint32_t as_bytes_u24;
+    int      as_str_index;
+    int      as_str_len_actual;
+    int      as_str_len_expected;
+    int      as_str_trailing_pad_chars_expected;
+    uint8_t  decoded_u6;
 
-    // Set the params based on what was passed in
-    jsonrpc_set_req_param_str(ctx, ptable[VOL_NAME],   in_mount_handle->volume_name);
-    jsonrpc_set_req_param_int(ctx, ptable[MOUNT_OPTS], in_mount_handle->mount_options);
-    jsonrpc_set_req_param_str(ctx, ptable[AUTH_USER],  in_mount_handle->auth_user);
+    as_str_len_actual = strlen(in_mount_handle->mount_id_as_str);
 
-    // Save away callback and cookie and the rest (in_bufptr, in_bufsize)
-    // for the callback to use
-    DPRINTF("setting callback info.\n");
-    jsonrpc_set_callback_info(ctx, NULL, in_mount_handle);
-    //jsonrpc_dump_user_callback(ctx);
-
-    // Call RPC
-    int req_status = jsonrpc_exec_request_nonblocking(ctx, &proxyfs_remount_response_callback);
-    if (req_status != 0) {
-        handle_rsp_error(__FUNCTION__, &req_status, in_mount_handle);
+    switch (MOUNT_ID_SIZE % 3) {
+        case 0:
+            as_str_len_expected                = ((MOUNT_ID_SIZE + 0) / 3) * 4;
+            as_str_trailing_pad_chars_expected = 0;
+            break;
+        case 1:
+            as_str_len_expected                = ((MOUNT_ID_SIZE + 2) / 3) * 4;
+            as_str_trailing_pad_chars_expected = 2;
+            break;
+        case 2:
+            as_str_len_expected                = ((MOUNT_ID_SIZE + 1) / 3) * 4;
+            as_str_trailing_pad_chars_expected = 1;
+            break;
     }
 
-    return req_status;
+    if (as_str_len_actual != as_str_len_expected) {
+        return ENOENT;
+    }
+
+    if (as_str_trailing_pad_chars_expected > 0) {
+        if ('=' != in_mount_handle->mount_id_as_str[as_str_len_actual-1]) {
+            return ENOENT;
+        }
+        if (as_str_trailing_pad_chars_expected == 2) {
+            if ('=' != in_mount_handle->mount_id_as_str[as_str_len_actual-2]) {
+                return ENOENT;
+            }
+        }
+    }
+
+    as_bytes_index = 0;
+
+    for (as_str_index = 0;;as_str_index += 4) {
+        decoded_u6 = proxyfs_base64_decode_table[in_mount_handle->mount_id_as_str[as_str_index+0]];
+        if (decoded_u6 > 63) return ENOENT; // FAILED
+        as_bytes_u24 = (uint32_t)decoded_u6;
+        decoded_u6 = proxyfs_base64_decode_table[in_mount_handle->mount_id_as_str[as_str_index+1]];
+        if (decoded_u6 > 63) return ENOENT; // FAILED
+        as_bytes_u24 = (as_bytes_u24 << 6) | (uint32_t)decoded_u6;
+        decoded_u6 = proxyfs_base64_decode_table[in_mount_handle->mount_id_as_str[as_str_index+2]];
+        if (decoded_u6 > 63) return ENOENT; // FAILED
+        as_bytes_u24 = (as_bytes_u24 << 6) | (uint32_t)decoded_u6;
+        decoded_u6 = proxyfs_base64_decode_table[in_mount_handle->mount_id_as_str[as_str_index+3]];
+        if (decoded_u6 > 63) return ENOENT; // FAILED
+        as_bytes_u24 = (as_bytes_u24 << 6) | (uint32_t)decoded_u6;
+        in_mount_handle->mount_id_as_bytes[as_bytes_index++] = (uint8_t)((as_bytes_u24 & 0xFF0000) >> 16);
+        if (as_bytes_index == MOUNT_ID_SIZE) return 0; // SUCCESS
+        in_mount_handle->mount_id_as_bytes[as_bytes_index++] = (uint8_t)((as_bytes_u24 & 0x00FF00) >>  8);
+        if (as_bytes_index == MOUNT_ID_SIZE) return 0; // SUCCESS
+        in_mount_handle->mount_id_as_bytes[as_bytes_index++] = (uint8_t)((as_bytes_u24 & 0x0000FF) >>  0);
+        if (as_bytes_index == MOUNT_ID_SIZE) return 0; // SUCCESS
+    }
+
+    // No way to reach here... as_str_index loop is unterminated but MOUNT_ID_SIZE limits as_bytes_index
 }
-#endif
 
 int proxyfs_ping(mount_handle_t* in_mount_handle, char* in_ping_message)
 {
@@ -1353,7 +1403,7 @@ int proxyfs_read(mount_handle_t* in_mount_handle,
         jsonrpc_set_profiler(ctx, profiler);
 
         // Set the params based on what was passed in
-        jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+        jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
         jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
         jsonrpc_set_req_param_uint64(ctx, ptable[OFFSET],    in_offset);
         jsonrpc_set_req_param_uint64(ctx, ptable[LENGTH],    in_length);
@@ -1428,30 +1478,18 @@ done:
     return rsp_status;
 }
 
-typedef struct {
-    uint64_t   op_type;
-    uint64_t   mount_id;
-    uint64_t   inode_number;
-    uint64_t   offset;
-    uint64_t   length;
-} io_req_hdr_t;
-
-typedef struct {
-    uint64_t   error;
-    uint64_t   io_size;
-} io_resp_hdr_t;
-
 int proxyfs_read_req(proxyfs_io_request_t *req, int sock_fd)
 {
     int           sock_ret;
     io_req_hdr_t  req_hdr = {
             .op_type      = 1002,
-            .mount_id     = req->mount_handle->mount_id,
             .inode_number = req->inode_number,
             .offset       = req->offset,
             .length       = req->length,
     };
     io_resp_hdr_t resp_hdr;
+
+    (void)memcpy(req_hdr.mount_id, req->mount_handle->mount_id_as_bytes, MOUNT_ID_SIZE);
 
     if ((req == NULL) || (req->mount_handle == NULL) || (req->data == NULL)) {
         return EINVAL;
@@ -1517,185 +1555,6 @@ done:
     // XXX TODO: why return anything here if it's always zero?
     return 0;
 }
-
-#if 0
-// NOTE: Old-style async read code, disabled for now.
-//
-// Forward declaration of internal callback
-void proxyfs_read_response_callback(jsonrpc_context_t* ctx);
-
-int proxyfs_read_send(void*                   in_request_id,
-                      proxyfs_io_info_t*      in_request,
-                      proxyfs_done_callback_t in_done_callback)
-{
-    // Convenience variable
-    proxyfs_io_info_t* req = in_request;
-
-    // Make sure that the buffer is big enough to hold the number of bytes requested
-    if ((req == NULL)                      || (in_done_callback == NULL) ||
-        (req->in_mount_handle == NULL)     || (req->in_bufptr == NULL)   ||
-        (req->in_bufsize < req->in_length))
-    {
-        return EINVAL;
-    }
-
-    // XXX TODO: New code: Pick a worker thread and send it the work
-
-    // Get context and set the method
-    jsonrpc_context_t* ctx = jsonrpc_open(req->in_mount_handle->rpc_handle, "RpcRead");
-
-    // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  req->in_mount_handle->mount_id);
-    jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], req->in_inode_number);
-    jsonrpc_set_req_param_uint64(ctx, ptable[OFFSET],    req->in_offset);
-    jsonrpc_set_req_param_uint64(ctx, ptable[LENGTH],    req->in_length);
-
-    // Save away callback and request id and the rest (in_bufptr, in_bufsize)
-    // for the callback to use
-    DPRINTF("setting callback info.\n");
-    jsonrpc_set_callback_info(ctx, in_done_callback, in_request_id,
-                              req->in_mount_handle, req->in_bufptr, req->in_bufsize,
-                              req->in_inode_number, req->in_offset, req->in_length,
-                              req);
-    jsonrpc_dump_user_callback(ctx);
-
-    // Call RPC
-    int req_status = jsonrpc_exec_request_nonblocking(ctx, &proxyfs_read_response_callback);
-    if (req_status != 0) {
-        handle_rsp_error(__FUNCTION__, &req_status, req->in_mount_handle);
-
-        // Clean up jsonrpc context, since we won't get another chance
-        jsonrpc_close(ctx);
-    }
-
-    DPRINTF("Returning %d.\n",req_status);
-    return req_status;
-}
-
-void proxyfs_read_response_callback(jsonrpc_context_t* ctx)
-{
-    void*                   in_request_id    = NULL;
-    proxyfs_done_callback_t in_done_callback = NULL;
-    proxyfs_io_info_t*      in_response      = NULL;
-
-    // Fetch the done callback info out of the ctx
-    int rc = jsonrpc_get_done_callback(ctx,
-                                       &in_done_callback,
-                                       &in_request_id,
-                                       &in_response);
-    if (rc != 0) {
-        // we had a problem fetching our callback context info
-        DPRINTF("ERROR, unable to fetch callback info! rc=%d\n",rc);
-
-        // Since we can't find the callback, nothing more to do :(
-        return;
-    }
-
-    // Fill in in_response
-    rc = proxyfs_read_recv(in_request_id,
-                           &in_response->out_status,
-                           &in_response->out_size);
-    if (rc != 0) {
-        // we had a problem fetching our response
-        DPRINTF("ERROR, unable to fetch response info! rc=%d\n",rc);
-
-        // Since we can't find the callback, nothing more to do :(
-        return;
-    }
-
-    DPRINTF("calling user done callback; status=%d size=%ld.\n", in_response->out_status, in_response->out_size);
-
-    // call user's cb
-    (*in_done_callback)(in_request_id, in_response);
-
-    // NOTE: we still need to keep ctx around until the user calls proxyfs_read_recv.
-}
-
-int proxyfs_read_recv(void*   in_request_id,
-                      int*    out_rsp_status,
-                      size_t* out_bufsize)
-{
-    // Check inputs
-    if ((in_request_id == NULL) || (out_rsp_status == NULL) || (out_bufsize == NULL)) {
-        return EINVAL;
-    }
-
-    // Initialize return values
-    *out_rsp_status = -1;
-    *out_bufsize    =  0;
-
-    // Get ctx based on in_request_id
-    jsonrpc_context_t* ctx = jsonrpc_get_request_by_cookie(in_request_id);
-    if (ctx == NULL) {
-        // can't find request corresponding to the id provided
-        DPRINTF("ERROR, unable to fetch info for request_id=%p!\n",in_request_id);
-        return ENOENT;
-    }
-
-    // XXX TODO: simplify callback info? Or keep and use for debugging?
-
-    // Fetch the callback info out of the ctx and handle the response.
-    // Set rsp_status and out_bufsize from ctx and return
-    //
-    // This solves our problem with how to put the read data
-    // into the correct buffer...
-
-    uint64_t                in_inode_number  = 0;
-    uint64_t                in_offset        = 0;
-    uint64_t                in_length        = 0;
-    uint8_t*                in_bufptr        = NULL;
-    size_t                  in_bufsize       = 0;
-    void*                   in_cookie        = NULL;
-    mount_handle_t*         in_mount_handle  = NULL;
-    proxyfs_done_callback_t in_done_callback = NULL;
-
-    int rc = jsonrpc_get_callback_info(ctx,
-                                       &in_done_callback,
-                                       &in_cookie,
-                                       (void*)&in_mount_handle,
-                                       &in_bufptr,
-                                       &in_bufsize,
-                                       &in_inode_number,
-                                       &in_offset,
-                                       &in_length);
-    if (rc != 0) {
-        // we had a problem fetching our callback context info
-        DPRINTF("ERROR, unable to fetch read context info! rc=%d\n",rc);
-
-        // Since we can't find the callback, nothing more to do :(
-        return;
-    }
-    //jsonrpc_dump_user_callback(ctx);
-
-    // Extract response status from the context
-    *out_rsp_status = jsonrpc_get_resp_status(ctx);
-    if (*out_rsp_status == 0) {
-        // Success; Set the values to be returned
-        //
-        jsonrpc_get_resp_buf(ctx, ptable[BUF], in_bufptr, in_bufsize, out_bufsize);
-        if (in_bufsize < *out_bufsize) {
-            DPRINTF("ERROR, wrote %ld bytes in a buffer of size %ld!\n",
-                    *out_bufsize, in_bufsize);
-        }
-    } else {
-        // Special handling for read/write/flush: translate ENOENT to EBADF
-        if (*out_rsp_status == ENOENT) {
-            *out_rsp_status = EBADF;
-        }
-
-        // XXX TODO: Don't want to do this here if we're being called from our own thread, deadlock.
-        //handle_rsp_error(__FUNCTION__, out_rsp_status, in_mount_handle);
-    }
-
-    // Remove request context from outstanding request list
-    jsonrpc_remove_request(ctx);
-
-    // Clean up jsonrpc context
-    jsonrpc_close(ctx);
-
-    return rc;
-}
-#endif
 
 struct dirent* proxyfs_get_dirents(jsonrpc_context_t* ctx, int num_entries)
 {
@@ -1787,7 +1646,7 @@ int proxyfs_readdir(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcReaddir");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],          in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],          in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],         in_inode_number);
     jsonrpc_set_req_param_uint64(ctx, ptable[MAX_ENTRIES],       1);
     jsonrpc_set_req_param_str   (ctx, ptable[PREV_DIR_ENT_NAME], in_prev_dir_ent_name);
@@ -1809,7 +1668,7 @@ int proxyfs_readdir_by_loc(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcReaddirByLoc");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],              in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],              in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],             in_inode_number);
     jsonrpc_set_req_param_uint64(ctx, ptable[MAX_ENTRIES],           1);
     jsonrpc_set_req_param_int64 (ctx, ptable[PREV_DIR_ENT_LOCATION], in_prev_dir_ent_location);
@@ -1880,9 +1739,9 @@ int proxyfs_readdir_plus(mount_handle_t*  in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcReaddirPlus");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],        in_mount_handle->mount_id);
-    jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],       in_inode_number);
-    jsonrpc_set_req_param_uint64(ctx, ptable[MAX_ENTRIES],     1);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],          in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],         in_inode_number);
+    jsonrpc_set_req_param_uint64(ctx, ptable[MAX_ENTRIES],       1);
     jsonrpc_set_req_param_str   (ctx, ptable[PREV_DIR_ENT_NAME], in_prev_dir_ent_name);
 
     return proxyfs_readdir_plus_helper(in_mount_handle, ctx, out_dir_ent, out_dir_ent_stats);
@@ -1905,7 +1764,7 @@ int proxyfs_readdir_plus_by_loc(mount_handle_t*  in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcReaddirPlusByLoc");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],              in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],              in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],             in_inode_number);
     jsonrpc_set_req_param_uint64(ctx, ptable[MAX_ENTRIES],           1);
     jsonrpc_set_req_param_int64 (ctx, ptable[PREV_DIR_ENT_LOCATION], in_prev_dir_ent_loc);
@@ -1925,7 +1784,7 @@ int proxyfs_read_symlink(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcReadSymlink");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
 
     // Call RPC
@@ -1959,8 +1818,8 @@ int proxyfs_read_symlink_path(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcReadSymlinkPath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH], in_fullpath);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -1989,11 +1848,11 @@ static int proxyfs_remove_xattr1(mount_handle_t* in_mount_handle,
 
     if (in_fullpath == NULL) {
         ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcRemoveXAttr");
-        jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+        jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
         jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     } else {
         ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcRemoveXAttrPath");
-        jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+        jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
         jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
     }
 
@@ -2035,7 +1894,7 @@ int proxyfs_rename(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcRename");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],       in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],       in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[SRC_INODE_NUM],  in_src_dir_inode_number);
     jsonrpc_set_req_param_str   (ctx, ptable[SRC_BASENAME],   in_src_basename);
     jsonrpc_set_req_param_uint64(ctx, ptable[DEST_INODE_NUM], in_dst_dir_inode_number);
@@ -2064,9 +1923,9 @@ int proxyfs_rename_path(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcRenamePath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],     in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH],     in_src_fullpath);
-    jsonrpc_set_req_param_str   (ctx, ptable[DST_FULLPATH], in_dst_fullpath);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID],     in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH],     in_src_fullpath);
+    jsonrpc_set_req_param_str(ctx, ptable[DST_FULLPATH], in_dst_fullpath);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -2091,7 +1950,7 @@ int proxyfs_resize(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcResize");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     jsonrpc_set_req_param_uint64(ctx, ptable[NEW_SIZE],  in_new_size);
 
@@ -2118,7 +1977,7 @@ int proxyfs_rmdir(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcRmdir");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     jsonrpc_set_req_param_str   (ctx, ptable[BASENAME],  in_basename);
 
@@ -2144,8 +2003,8 @@ int proxyfs_rmdir_path(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcRmdirPath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH],  in_fullpath);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -2174,8 +2033,8 @@ int proxyfs_setstat(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcSetstat");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],   in_mount_handle->mount_id);
-    jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM],  in_inode_number);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     jsonrpc_set_req_param_uint64(ctx, ptable[CTIME],     in_stat_ctime);
     jsonrpc_set_req_param_uint64(ctx, ptable[MTIME],     in_stat_mtime);
     jsonrpc_set_req_param_uint64(ctx, ptable[ATIME],     in_stat_atime);
@@ -2215,7 +2074,7 @@ int proxyfs_settime(mount_handle_t*      in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcSetTime");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
 
     // Convert times to nanosecs since epoch before sending over the wire
@@ -2246,8 +2105,8 @@ int proxyfs_settime_path(mount_handle_t*      in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcSetTimePath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH],  in_fullpath);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
 
     // Convert times to nanosecs since epoch before sending over the wire
     jsonrpc_set_req_param_uint64(ctx, ptable[MTIME], timespec_to_nanosec(in_stat_mtime));
@@ -2280,11 +2139,11 @@ static int proxyfs_set_xattr1(mount_handle_t* in_mount_handle,
 
     if (in_fullpath == NULL) {
         ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcSetXAttr");
-        jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+        jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
         jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     } else {
         ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcSetXAttrPath");
-        jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+        jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
         jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
     }
 
@@ -2354,7 +2213,7 @@ int proxyfs_statvfs(mount_handle_t*  in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcStatVFS");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -2390,7 +2249,7 @@ int proxyfs_symlink(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcSymlink");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     jsonrpc_set_req_param_str   (ctx, ptable[BASENAME],  in_basename);
     jsonrpc_set_req_param_str   (ctx, ptable[TARGET],    in_target);
@@ -2422,11 +2281,11 @@ int proxyfs_symlink_path(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcSymlinkPath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],     in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH],     in_fullpath);
-    jsonrpc_set_req_param_str   (ctx, ptable[TGT_FULLPATH], in_target_fullpath);
-    jsonrpc_set_req_param_int   (ctx, ptable[USERID],       in_uid);
-    jsonrpc_set_req_param_int   (ctx, ptable[GROUPID],      in_gid);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID],     in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH],     in_fullpath);
+    jsonrpc_set_req_param_str(ctx, ptable[TGT_FULLPATH], in_target_fullpath);
+    jsonrpc_set_req_param_int(ctx, ptable[USERID],       in_uid);
+    jsonrpc_set_req_param_int(ctx, ptable[GROUPID],      in_gid);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -2483,7 +2342,7 @@ int proxyfs_type(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcType");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
 
     // Call RPC
@@ -2513,7 +2372,7 @@ int proxyfs_unlink(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcUnlink");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+    jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
     jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
     jsonrpc_set_req_param_str   (ctx, ptable[BASENAME],  in_basename);
 
@@ -2539,8 +2398,8 @@ int proxyfs_unlink_path(mount_handle_t* in_mount_handle,
     jsonrpc_context_t* ctx = jsonrpc_open(in_mount_handle->rpc_handle, "RpcUnlinkPath");
 
     // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
-    jsonrpc_set_req_param_str   (ctx, ptable[FULLPATH],  in_fullpath);
+    jsonrpc_set_req_param_str(ctx, ptable[MOUNT_ID], in_mount_handle->mount_id_as_str);
+    jsonrpc_set_req_param_str(ctx, ptable[FULLPATH], in_fullpath);
 
     // Call RPC
     int rsp_status = jsonrpc_exec_request_blocking(ctx);
@@ -2557,6 +2416,9 @@ int proxyfs_unmount(mount_handle_t* in_mount_handle)
 {
     if (in_mount_handle != NULL) {
         pfs_rpc_close(in_mount_handle->rpc_handle); // XXX TODO: move inside proxyfs_jsonrpc.c?
+        if (in_mount_handle->mount_id_as_str != NULL) {
+            free(in_mount_handle->mount_id_as_str);
+        }
         free(in_mount_handle);
     }
     // XXX TODO: remove this!
@@ -2631,7 +2493,7 @@ int proxyfs_write(mount_handle_t* in_mount_handle,
         jsonrpc_set_profiler(ctx, profiler);
 
         // Set the params based on what was passed in
-        jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id);
+        jsonrpc_set_req_param_str   (ctx, ptable[MOUNT_ID],  in_mount_handle->mount_id_as_str);
         jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], in_inode_number);
         jsonrpc_set_req_param_uint64(ctx, ptable[OFFSET],    in_offset);
 
@@ -2711,12 +2573,13 @@ int proxyfs_write_req(proxyfs_io_request_t *req, int sock_fd)
     int           sock_ret;
     io_req_hdr_t  req_hdr = {
             .op_type      = 1001,
-            .mount_id     = req->mount_handle->mount_id,
             .inode_number = req->inode_number,
             .offset       = req->offset,
             .length       = req->length,
     };
     io_resp_hdr_t resp_hdr;
+
+    (void)memcpy(req_hdr.mount_id, req->mount_handle->mount_id_as_bytes, MOUNT_ID_SIZE);
 
     if ((req == NULL) || (req->mount_handle == NULL) || (req->data == NULL)) {
         return EINVAL;
@@ -2783,176 +2646,6 @@ done:
 
     return 0;
 }
-
-#if 0
-// NOTE: Old-style async write code, disabled for now.
-//
-// Forward declaration of internal callback
-void proxyfs_write_response_callback(jsonrpc_context_t* ctx);
-
-int proxyfs_write_send(void*                   in_request_id,
-                       proxyfs_io_info_t*      in_request,
-                       proxyfs_done_callback_t in_done_callback)
-{
-    // Convenience variable
-    proxyfs_io_info_t* req = in_request;
-
-    // Make sure that the buffer is big enough to hold the number of bytes requested
-    if ((req == NULL)                      || (in_done_callback == NULL) ||
-        (req->in_mount_handle == NULL)     || (req->in_bufptr == NULL)   ||
-        (req->in_bufsize < req->in_length))
-    {
-        return EINVAL;
-    }
-
-    // Get context and set the method
-    jsonrpc_context_t* ctx = jsonrpc_open(req->in_mount_handle->rpc_handle, "RpcWrite");
-
-    // Set the params based on what was passed in
-    jsonrpc_set_req_param_uint64(ctx, ptable[MOUNT_ID],  req->in_mount_handle->mount_id);
-    jsonrpc_set_req_param_uint64(ctx, ptable[INODE_NUM], req->in_inode_number);
-    jsonrpc_set_req_param_uint64(ctx, ptable[OFFSET],    req->in_offset);
-
-    // Encode binary data into a JSON string
-    jsonrpc_set_req_param_buf   (ctx, ptable[BUF],       req->in_bufptr, req->in_bufsize);
-
-    // Save away callback and request id and the rest (in_bufptr, in_bufsize)
-    // for the callback to use
-    DPRINTF("setting callback info.\n");
-    jsonrpc_set_callback_info(ctx, in_done_callback, in_request_id,
-                              req->in_mount_handle, req->in_bufptr, req->in_bufsize,
-                              req->in_inode_number, req->in_offset, req->in_bufsize, req);
-    jsonrpc_dump_user_callback(ctx);
-
-    // Call RPC
-    int req_status = jsonrpc_exec_request_nonblocking(ctx, &proxyfs_write_response_callback);
-    if (req_status != 0) {
-        handle_rsp_error(__FUNCTION__, &req_status, req->in_mount_handle);
-
-        // Clean up jsonrpc context, since we won't get another chance
-        jsonrpc_close(ctx);
-    }
-
-    DPRINTF("Returning %d.\n",req_status);
-    return req_status;
-}
-
-void proxyfs_write_response_callback(jsonrpc_context_t* ctx)
-{
-    void*                   in_request_id    = NULL;
-    proxyfs_done_callback_t in_done_callback = NULL;
-    proxyfs_io_info_t*      in_response      = NULL;
-
-    // Fetch the done callback info out of the ctx
-    int rc = jsonrpc_get_done_callback(ctx,
-                                       &in_done_callback,
-                                       &in_request_id,
-                                       &in_response);
-    if (rc != 0) {
-        // we had a problem fetching our callback context info
-        DPRINTF("ERROR, unable to fetch callback info! rc=%d\n",rc);
-
-        // Since we can't find the callback, nothing more to do :(
-        return;
-    }
-
-    // Fill in in_response
-    rc = proxyfs_write_recv(in_request_id,
-                            &in_response->out_status,
-                            &in_response->out_size);
-    if (rc != 0) {
-        // we had a problem fetching our response
-        DPRINTF("ERROR, unable to fetch response info! rc=%d\n",rc);
-
-        // Since we can't find the callback, nothing more to do :(
-        return;
-    }
-
-    DPRINTF("calling user done callback; status=%d size=%ld.\n", in_response->out_status, in_response->out_size);
-
-    // call user's cb
-    (*in_done_callback)(in_request_id, in_response);
-
-    // NOTE: we still need to keep ctx around until the user calls proxyfs_write_recv.
-}
-
-int proxyfs_write_recv(void*   in_request_id,
-                       int*    out_rsp_status,
-                       size_t* out_size)
-{
-    // Check inputs
-    if ((in_request_id == NULL) || (out_rsp_status == NULL) || (out_size == NULL)) {
-        return EINVAL;
-    }
-
-    // Initialize return values
-    *out_rsp_status = -1;
-    *out_size       =  0;
-
-    // Get ctx based on in_request_id
-    jsonrpc_context_t* ctx = jsonrpc_get_request_by_cookie(in_request_id);
-    if (ctx == NULL) {
-        // can't find request corresponding to the id provided
-        DPRINTF("ERROR, unable to fetch info for request_id=%p!\n",in_request_id);
-        return ENOENT;
-    }
-
-    // XXX TODO: simplify callback info? Or keep and use for debugging?
-
-    // Fetch the callback info out of the ctx and handle the response.
-    // Set rsp_status and out_size from ctx and return
-
-    uint64_t                in_inode_number  = 0;
-    uint64_t                in_offset        = 0;
-    uint64_t                in_length        = 0;
-    uint8_t*                in_bufptr        = NULL;
-    size_t                  in_bufsize       = 0;
-    void*                   in_cookie        = NULL;
-    mount_handle_t*         in_mount_handle  = NULL;
-    proxyfs_done_callback_t in_done_callback = NULL;
-
-    int rc = jsonrpc_get_callback_info(ctx,
-                                       &in_done_callback,
-                                       &in_cookie,
-                                       (void*)&in_mount_handle,
-                                       &in_bufptr,
-                                       &in_bufsize,
-                                       &in_inode_number,
-                                       &in_offset,
-                                       &in_length);
-    if (rc != 0) {
-        // we had a problem fetching our callback context info
-        DPRINTF("ERROR, unable to fetch read context info! rc=%d\n",rc);
-
-        // Since we can't find the callback, nothing more to do :(
-        return;
-    }
-    //jsonrpc_dump_user_callback(ctx);
-
-    // Extract response status from the context
-    *out_rsp_status = jsonrpc_get_resp_status(ctx);
-    if (*out_rsp_status == 0) {
-        // Success; Set the values to be returned
-        *out_size = jsonrpc_get_resp_uint64(ctx, ptable[SIZE]);
-    } else {
-        // Special handling for read/write/flush: translate ENOENT to EBADF
-        if (*out_rsp_status == ENOENT) {
-            *out_rsp_status = EBADF;
-        }
-
-        // XXX TODO: Don't want to do this here if we're being called from our own thread, deadlock.
-        //handle_rsp_error(__FUNCTION__, out_rsp_status, in_mount_handle);
-    }
-
-    // Remove request context from outstanding request list
-    jsonrpc_remove_request(ctx);
-
-    // Clean up jsonrpc context
-    jsonrpc_close(ctx);
-
-    return rc;
-}
-#endif
 
 // Flag to control debug prints. Defaulted to on for now.
 int debug_flag = 0;
