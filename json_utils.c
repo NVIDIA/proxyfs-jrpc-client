@@ -262,20 +262,6 @@ json_object* get_jrpc_result(json_object* jobj)
     return find_something(jobj, RESULT_KEY);
 }
 
-uint64_t get_jrpc_mount_id(json_object* jobj)
-{
-    json_object* obj = NULL;
-    // MountID is inside the result object
-    json_object* robj = get_jrpc_result(jobj);
-    if (!json_object_object_get_ex(robj, "MountID", &obj)) {
-        // key was not found
-        DPRINTF("MountID field not found in response!\n");
-        return 0;
-    }
-
-    return json_object_get_int64(obj);
-}
-
 json_object* get_jrpc_resp_array_elem(jsonrpc_context_t* ctx, char* array_key, int index)
 {
     // Get the dirent array from the result
