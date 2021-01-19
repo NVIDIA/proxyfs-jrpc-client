@@ -1,3 +1,6 @@
+// Copyright (c) 2015-2021, NVIDIA CORPORATION.
+// SPDX-License-Identifier: Apache-2.0
+
 // Worker threads to handle aio requests from file server. Each worker will do synchronous request to
 // proxyfs file server. That means the max outstanding concurrent request will be equal to thread pool size.
 

@@ -1,3 +1,6 @@
+// Copyright (c) 2015-2021, NVIDIA CORPORATION.
+// SPDX-License-Identifier: Apache-2.0
+
 #include <inttypes.h>
 #include <string.h>
 #include <sys/stat.h>

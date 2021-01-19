@@ -1,5 +1,8 @@
 #! /usr/bin/awk -f
 #
+# Copyright (c) 2015-2021, NVIDIA CORPORATION.
+# SPDX-License-Identifier: Apache-2.0
+#
 # Command to parse output from jrpcclient trace
 # and count the average duration.
 #

@@ -1,3 +1,6 @@
+// Copyright (c) 2015-2021, NVIDIA CORPORATION.
+// SPDX-License-Identifier: Apache-2.0
+
 // Create and manage a pool of sockets - useful for concurrent operations that need to send data over sockets concurrently.
 
 // APIs:
