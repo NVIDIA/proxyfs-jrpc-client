@@ -1,3 +1,6 @@
+// Copyright (c) 2015-2021, NVIDIA CORPORATION.
+// SPDX-License-Identifier: Apache-2.0
+
 #ifndef __TIME_UTILS_H__
 #define __TIME_UTILS_H__
 

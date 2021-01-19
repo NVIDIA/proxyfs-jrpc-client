@@ -1,3 +1,6 @@
+# Copyright (c) 2015-2021, NVIDIA CORPORATION.
+# SPDX-License-Identifier: Apache-2.0
+
 CC=gcc
 CFLAGS=-I. -I/opt/ss/include -fPIC -g
 # The -lrt flag is needed to avoid a link error related to clock_* methods if glibc < 2.17
